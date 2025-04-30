@@ -1,0 +1,252 @@
+# VENTRY - OFFLINE EVENT CHECK-IN APP UX FLOW
+
+## 1. USER JOURNEY OVERVIEW
+
+This document outlines the user experience flow through the Ventry app, with emphasis on the offline functionality and local data management.
+
+## 2. FIRST-TIME USER EXPERIENCE
+
+### 2.1 App Launch & Local Profile Setup
+1. User downloads and installs Ventry app
+2. App launches to Welcome Screen with three options
+3. User selects "Create Profile"
+4. User enters name, organization (optional), and creates PIN for local security
+5. App creates local SQLite database and initializes storage
+6. User is directed to the Dashboard (empty state)
+
+### 2.2 Alternative Setup Paths
+1. **Import Backup**:
+   - User selects "Import Backup" on welcome screen
+   - File picker opens to select backup file
+   - App restores data and settings from backup
+   - User is directed to Dashboard with restored data
+
+2. **Scan Transfer Code**:
+   - User selects "Scan Transfer Code" on welcome screen
+   - Camera opens to scan QR code from another device
+   - Basic settings are transferred (not full data)
+   - User completes remaining profile setup
+   - User is directed to empty Dashboard
+
+## 3. EVENT MANAGEMENT FLOW
+
+### 3.1 Creating a New Event
+1. From Dashboard, user taps "+ Create New Event"
+2. User completes event form:
+   - Event Name (required)
+   - Date and Time (required)
+   - Location (required)
+   - Event Type (Workshop/Club Meeting/Restaurant)
+   - Description (optional)
+3. User taps "Create Event"
+4. App saves event data to local SQLite database
+5. User is navigated to the Event Details screen
+
+### 3.2 Importing Attendees via CSV
+1. From Event Details, user selects "Import CSV"
+2. App opens file picker to select CSV from device storage
+3. User reviews CSV preview
+4. User maps CSV columns to required fields:
+   - First Name (required)
+   - Last Name (required)
+   - Email (optional/required based on event type)
+   - Custom fields (based on event type)
+5. User taps "Import" button
+6. App processes CSV and adds attendees to local database
+7. Success message shows with count of imported attendees
+8. User returns to Event Details with updated attendee count
+
+### 3.3 Manual Attendee Addition
+1. From Event Details, user selects "+ Add Attendee"
+2. User completes attendee form with fields based on event type:
+   - Workshop: Name, Email
+   - Club: Name, Membership ID, Status, Expiry Date
+   - Restaurant: Name, Phone/Email, Status/Tag, Points
+3. User taps "Add"
+4. App saves attendee to local database
+5. User returns to Event Details with updated attendee count
+
+## 4. CHECK-IN PROCESS FLOW
+
+### 4.1 Starting Check-in Mode
+1. From Event Details, user taps "Start Check-in"
+2. App transitions to Check-in Interface
+3. User sees:
+   - Attendee list
+   - Search bar
+   - "Scan QR Code" button
+   - "+ Add Walk-in Attendee" button
+   - Check-in counter (e.g., "Checked In: 12/45")
+
+### 4.2 List-Based Check-in
+1. User types attendee name in search field
+2. List filters in real-time as user types
+3. User taps on attendee entry
+4. Confirmation popup appears with attendee details
+5. User confirms check-in
+6. App records check-in with timestamp in local database
+7. Success animation displays with attendee details
+8. Check-in counter updates
+9. App returns to the filtered list
+
+### 4.3 QR Code Check-in
+1. User taps "Scan QR Code"
+2. Camera opens with scanning frame
+3. User scans attendee's QR code
+4. App processes QR data and searches local database
+5. If found, confirmation screen appears with attendee details
+6. User confirms check-in (or auto-confirms based on settings)
+7. App records check-in with timestamp in local database
+8. Success animation displays
+9. Check-in counter updates
+10. App returns to camera for next scan or user taps "Back to List"
+
+### 4.4 Walk-in Handling
+1. User taps "+ Add Walk-in Attendee"
+2. Quick attendee form appears with minimal required fields
+3. User enters attendee information
+4. User taps "Add & Check In"
+5. App saves new attendee to database and immediately marks as checked in
+6. Success animation displays
+7. Check-in counter updates
+8. App returns to the main check-in list
+
+## 5. QR CODE GENERATION
+
+### 5.1 Event QR Codes
+1. From Event Details, user taps "Generate QR"
+2. User selects "Event Check-in QR"
+3. App generates QR code containing event identifier
+4. User can save QR image to device or share
+
+### 5.2 Attendee QR Codes
+1. From Event Details, user taps "Generate QR"
+2. User selects "Individual Attendee QR Codes"
+3. User can select specific attendees or generate for all
+4. App generates individual QR codes for each selected attendee
+5. User can save as individual images or as PDF collection
+
+## 6. DATA EXPORT & BACKUP
+
+### 6.1 Exporting Event Data
+1. From Event Details, user selects "Export Data"
+2. User selects export format:
+   - CSV: For raw data
+   - PDF Report: For formatted report
+3. User selects data components to include:
+   - Attendee List
+   - Check-in Records
+   - Check-in Statistics
+4. User taps "Export to Device"
+5. App processes and generates export file
+6. File is saved to device storage
+7. Confirmation dialog shows file location and sharing options
+
+### 6.2 Full App Backup
+1. From Tab Bar, user navigates to Backup screen
+2. User taps "Backup App Data"
+3. User can add optional password protection
+4. App compiles all database content into encrypted backup file
+5. File is saved to device storage with timestamp in filename
+6. Confirmation dialog shows backup location
+
+### 6.3 Restore Process
+1. From Backup screen, user selects "Restore from Backup"
+2. File picker opens to select backup file
+3. If password-protected, user enters password
+4. Confirmation dialog warns about overwriting current data
+5. User confirms
+6. App restores data from backup file
+7. App restarts to apply restored data
+
+## 7. NAVIGATION PATTERNS
+
+### 7.1 Primary Navigation
+- **Bottom Tab Bar**:
+  - Home (Dashboard): List of events
+  - Events: Calendar/list view of events
+  - Backup: Backup and restore options
+  - Account: Profile and app settings
+
+### 7.2 Secondary Navigation
+- **Back Button**: Returns to previous screen
+- **Dashboard Cards**: Tap to enter Event Details
+- **Hierarchical Navigation**: Dashboard → Event Details → Check-in/Import/Export
+- **Contextual Actions**: Action buttons change based on screen context
+
+## 8. OFFLINE INDICATORS & DATA MANAGEMENT
+
+### 8.1 Offline Status
+- Persistent [OFFLINE] indicator in header on all screens
+- All operations target local database without connectivity checks
+- No blocking operations that require internet connectivity
+
+### 8.2 Local Storage Management
+- Storage usage statistics in Account screen
+  - Number of events
+  - Number of attendees
+  - Database size
+  - Available device storage
+- Data cleanup tools for removing old events
+- Backup reminders based on activity level
+
+## 9. SECURITY FEATURES
+
+### 9.1 App Access Security
+- PIN protection for app access
+- Biometric authentication option (fingerprint/face ID)
+- Automatic lock after idle timeout (configurable)
+- PIN reset requires backup file access
+
+### 9.2 Data Security
+- Local database encryption
+- Password protection option for exports and backups
+- Secure storage for sensitive attendee information
+
+## 10. ERROR HANDLING & RECOVERY
+
+### 10.1 Import Validation
+- CSV format validation with clear error messages
+- Preview of data before import
+- Option to skip problematic rows
+- Field type validation with suggestions
+
+### 10.2 Data Integrity
+- Transaction-based database operations
+- Automatic validation on app launch
+- Recovery options from most recent backup
+- Corruption detection with repair tools
+
+## 11. CONTEXT-SPECIFIC ADAPTATIONS
+
+### 11.1 Workshop Events
+- Simplified attendee fields (Name, Email)
+- Focus on quick check-in
+- Attendance-focused reporting
+
+### 11.2 Club Meetings
+- Membership status prominently displayed
+- Expiry date checks and visual indicators
+- Member-specific fields and sorting
+
+### 11.3 Restaurant/Loyalty Events
+- Points/visits tracking
+- VIP status indicators
+- Custom tags for special guests
+
+## 12. MULTI-DEVICE STRATEGIES
+
+### 12.1 Data Transfer via Files
+- Export backup from primary device
+- Transfer file via standard sharing methods (AirDrop, Files app, messaging)
+- Import on secondary device
+
+### 12.2 QR Code Configuration Transfer
+- Generate special configuration QR from primary device
+- Scan with secondary device
+- Transfer basic settings (not full data)
+
+### 12.3 Dedicated Roles
+- Primary device for management and setup
+- Secondary devices for check-in only
+- Merge data via export/import process

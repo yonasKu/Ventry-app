@@ -1,59 +1,102 @@
 import React from 'react';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Link, Tabs } from 'expo-router';
-import { Pressable } from 'react-native';
+import { Pressable, Text, StyleSheet } from 'react-native';
+import { House, CalendarBlank, CloudArrowDown, User } from 'phosphor-react-native';
 
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import { useTheme } from '../../context/ThemeContext';
 
-// You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
+/**
+ * TabBarIcon component using Phosphor icons
+ */
 function TabBarIcon(props: {
-  name: React.ComponentProps<typeof FontAwesome>['name'];
-  color: string;
+  icon: React.ReactNode;
 }) {
-  return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
+  return (
+    <React.Fragment>
+      {props.icon}
+    </React.Fragment>
+  );
 }
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const theme = useTheme();
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
-        headerShown: useClientOnlyValue(false, true),
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.textTertiary,
+        headerShown: true,
+        headerStyle: {
+          backgroundColor: theme.colors.backgroundPrimary,
+        },
+        headerTitleStyle: {
+          color: theme.colors.textPrimary,
+          fontSize: theme.typography.heading2.fontSize,
+          fontWeight: '600', // Using literal value instead of theme.typography.heading2.fontWeight
+        },
+        tabBarStyle: {
+          backgroundColor: theme.colors.backgroundPrimary,
+          borderTopColor: theme.colors.border,
+        },
+        headerRight: () => (
+          <Text style={styles.offlineIndicator}>[OFFLINE]</Text>
+        ),
       }}>
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Tab One',
-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
-          headerRight: () => (
-            <Link href="/modal" asChild>
-              <Pressable>
-                {({ pressed }) => (
-                  <FontAwesome
-                    name="info-circle"
-                    size={25}
-                    color={Colors[colorScheme ?? 'light'].text}
-                    style={{ marginRight: 15, opacity: pressed ? 0.5 : 1 }}
-                  />
-                )}
-              </Pressable>
-            </Link>
+          title: 'Ventry',
+          tabBarLabel: 'Home',
+          tabBarIcon: ({ color }) => (
+            <TabBarIcon 
+              icon={<House size={24} color={color} weight="regular" />} 
+            />
           ),
         }}
       />
       <Tabs.Screen
-        name="two"
+        name="events"
         options={{
-          title: 'Tab Two',
-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
+          title: 'Events',
+          tabBarIcon: ({ color }) => (
+            <TabBarIcon 
+              icon={<CalendarBlank size={24} color={color} weight="regular" />} 
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="backup"
+        options={{
+          title: 'Backup',
+          tabBarIcon: ({ color }) => (
+            <TabBarIcon 
+              icon={<CloudArrowDown size={24} color={color} weight="regular" />} 
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="account"
+        options={{
+          title: 'Account',
+          tabBarIcon: ({ color }) => (
+            <TabBarIcon 
+              icon={<User size={24} color={color} weight="regular" />} 
+            />
+          ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  offlineIndicator: {
+    marginRight: 15,
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
+  },
+});
