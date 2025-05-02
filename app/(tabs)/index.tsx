@@ -8,13 +8,15 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Image,
+  ImageBackground,
 } from "react-native";
 import { Link, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useEvents } from "../../context/EventContext";
 import { useTheme } from "../../context/ThemeContext";
-import { format, parseISO } from "date-fns";
-import { Plus } from "phosphor-react-native";
+import { format, parseISO, isFuture, isPast, isToday } from "date-fns";
+import { Plus, CalendarCheck } from "phosphor-react-native";
 
 export default function HomeScreen() {
   const { events, loading, error, refreshEvents } = useEvents();
@@ -70,88 +72,142 @@ export default function HomeScreen() {
     }
   };
 
-  const renderEventItem = ({ item }: { item: any }) => (
-    <Link href={`/event/${item.id}`} asChild>
-      <TouchableOpacity
-        style={[
-          styles.eventCard,
-          { backgroundColor: theme.colors.backgroundPrimary },
-        ]}
-      >
-        <View style={styles.eventHeader}>
-          <Text
-            style={[styles.eventTitle, { color: theme.colors.textPrimary }]}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            {item.title}
-          </Text>
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <Ionicons
-                name="people-outline"
-                size={16}
-                color={theme.colors.textSecondary}
-              />
+  // Determine event status (upcoming, today, past)
+  const getEventStatus = (dateStr: string) => {
+    try {
+      const date = dateStr.includes("T") ? parseISO(dateStr) : new Date(dateStr);
+      if (isToday(date)) return "today";
+      if (isFuture(date)) return "upcoming";
+      if (isPast(date)) return "past";
+      return "upcoming";
+    } catch (err) {
+      return "upcoming";
+    }
+  };
+
+  // Get status color based on event status
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "today": return theme.colors.accent;
+      case "upcoming": return theme.colors.primary;
+      case "past": return theme.colors.textTertiary;
+      default: return theme.colors.primary;
+    }
+  };
+
+  // Get status label based on event status
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "today": return "TODAY";
+      case "upcoming": return "UPCOMING";
+      case "past": return "PAST";
+      default: return "";
+    }
+  };
+
+  const renderEventItem = ({ item, index }: { item: any, index: number }) => {
+    const eventStatus = getEventStatus(item.date);
+    const statusColor = getStatusColor(eventStatus);
+    const statusLabel = getStatusLabel(eventStatus);
+    
+    // Generate a consistent background pattern based on event id
+    const patternId = parseInt(item.id.substring(0, 8), 16) % 5;
+    
+    return (
+      <Link href={`/event/${item.id}`} asChild>
+        <TouchableOpacity
+          style={[
+            styles.eventCard,
+            { backgroundColor: theme.colors.backgroundPrimary },
+            theme.shadows.md,
+          ]}
+        >
+          {/* Status indicator */}
+          <View style={[styles.statusIndicator, { backgroundColor: statusColor }]}>
+            <Text style={styles.statusText}>{statusLabel}</Text>
+          </View>
+          
+          <View style={styles.eventContent}>
+            {/* Event header with title and attendee count */}
+            <View style={styles.eventHeader}>
               <Text
-                style={[styles.statText, { color: theme.colors.textSecondary }]}
-              >
-                {item.checked_in_count || 0}/{item.attendees_count || 0}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.eventDetails}>
-          <View style={styles.detailItem}>
-            <Ionicons
-              name="calendar-outline"
-              size={16}
-              color={theme.colors.textSecondary}
-            />
-            <Text
-              style={[styles.detailText, { color: theme.colors.textSecondary }]}
-            >
-              {formatDate(item.date)}
-            </Text>
-          </View>
-
-          <View style={styles.detailItem}>
-            <Ionicons
-              name="time-outline"
-              size={16}
-              color={theme.colors.textSecondary}
-            />
-            <Text
-              style={[styles.detailText, { color: theme.colors.textSecondary }]}
-            >
-              {formatTime(item.time)}
-            </Text>
-          </View>
-
-          {item.location && (
-            <View style={styles.detailItem}>
-              <Ionicons
-                name="location-outline"
-                size={16}
-                color={theme.colors.textSecondary}
-              />
-              <Text
-                style={[
-                  styles.detailText,
-                  { color: theme.colors.textSecondary },
-                ]}
+                style={[styles.eventTitle, { color: theme.colors.textPrimary }]}
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
-                {item.location}
+                {item.title}
               </Text>
+              <View style={styles.statsContainer}>
+                <View style={[styles.statBadge, { backgroundColor: `${statusColor}20` }]}>
+                  <Ionicons
+                    name="people-outline"
+                    size={14}
+                    color={statusColor}
+                  />
+                  <Text
+                    style={[styles.statText, { color: statusColor }]}
+                  >
+                    {item.checked_in_count || 0}/{item.attendees_count || 0}
+                  </Text>
+                </View>
+              </View>
             </View>
-          )}
-        </View>
-      </TouchableOpacity>
-    </Link>
-  );
+
+            {/* Event details */}
+            <View style={styles.eventDetails}>
+              <View style={styles.detailRow}>
+                <View style={styles.detailItem}>
+                  <Ionicons
+                    name="calendar-outline"
+                    size={16}
+                    color={theme.colors.textSecondary}
+                  />
+                  <Text
+                    style={[styles.detailText, { color: theme.colors.textSecondary }]}
+                  >
+                    {formatDate(item.date)}
+                  </Text>
+                </View>
+
+                <View style={styles.detailItem}>
+                  <Ionicons
+                    name="time-outline"
+                    size={16}
+                    color={theme.colors.textSecondary}
+                  />
+                  <Text
+                    style={[styles.detailText, { color: theme.colors.textSecondary }]}
+                  >
+                    {formatTime(item.time)}
+                  </Text>
+                </View>
+              </View>
+
+              {item.location && (
+                <View style={styles.detailItem}>
+                  <Ionicons
+                    name="location-outline"
+                    size={16}
+                    color={theme.colors.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      styles.detailText,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {item.location}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Link>
+    );
+  };
 
   if (loading && !refreshing) {
     return (
@@ -240,6 +296,14 @@ export default function HomeScreen() {
         { backgroundColor: theme.colors.backgroundSecondary },
       ]}
     >
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary }]}>
+        <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
+          Your Events
+        </Text>
+        <CalendarCheck size={24} color={theme.colors.primary} weight="duotone" />
+      </View>
+      
       <FlatList
         data={events}
         renderItem={renderEventItem}
@@ -278,25 +342,49 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
   },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.05)",
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+  },
   listContainer: {
     padding: 16,
     paddingBottom: 80,
   },
   eventCard: {
-    borderRadius: 12,
+    borderRadius: 16,
+    marginBottom: 20,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)",
+  },
+  statusIndicator: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignSelf: "flex-start",
+    borderBottomRightRadius: 12,
+  },
+  statusText: {
+    color: "white",
+    fontSize: 10,
+    fontWeight: "bold",
+  },
+  eventContent: {
     padding: 16,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   },
   eventHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   eventTitle: {
     fontSize: 18,
@@ -305,41 +393,35 @@ const styles = StyleSheet.create({
   },
   statsContainer: {
     flexDirection: "row",
+    marginLeft: 8,
   },
-  statItem: {
+  statBadge: {
     flexDirection: "row",
     alignItems: "center",
-    marginLeft: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   statText: {
     marginLeft: 4,
-    fontSize: 14,
+    fontSize: 12,
+    fontWeight: "600",
   },
   eventDetails: {
-    gap: 8,
+    gap: 12,
+  },
+  detailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   detailItem: {
     flexDirection: "row",
     alignItems: "center",
+    marginRight: 12,
   },
   detailText: {
     marginLeft: 8,
     fontSize: 14,
-  },
-  fab: {
-    position: "absolute",
-    right: 16,
-    bottom: 16,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 5,
   },
   loadingText: {
     marginTop: 16,
@@ -350,10 +432,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: "center",
   },
-  emptyText: {
-    marginTop: 16,
-    fontSize: 16,
-  },
   retryButton: {
     marginTop: 16,
     paddingHorizontal: 16,
@@ -361,23 +439,36 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   retryButtonText: {
-    color: "#FFFFFF",
+    color: "white",
     fontWeight: "bold",
   },
+  emptyText: {
+    marginTop: 16,
+    fontSize: 16,
+    textAlign: "center",
+  },
   createButton: {
-    borderRadius: 10,
-    padding: 15,
-    margin: 20,
+    position: "absolute",
+    bottom: 16,
+    left: 16,
+    right: 16,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   createButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
   },
   createButtonText: {
+    color: "white",
+    fontWeight: "bold",
     fontSize: 14,
-    fontWeight: 'bold',
-    color: 'white',
   },
 });

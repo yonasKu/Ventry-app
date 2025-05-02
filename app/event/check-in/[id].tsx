@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, TextInput, FlatList, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, TextInput, FlatList, ActivityIndicator, Alert, StatusBar } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { CaretLeft, MagnifyingGlass, CheckCircle, UserCirclePlus, QrCode } from 'phosphor-react-native';
-import { useTheme } from '@/context/ThemeContext';
-import { useEvents } from '@/context/EventContext';
+import { CaretLeft, MagnifyingGlass, CheckCircle, UserCirclePlus, QrCode, Users } from 'phosphor-react-native';
+import { useTheme } from '../../../context/ThemeContext';
+import { useEvents } from '../../../context/EventContext';
+import * as _ from 'lodash';
 
 type Attendee = {
   id: string;
@@ -17,7 +18,7 @@ type Attendee = {
 export default function CheckInScreen() {
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { getEventById } = useEvents();
+  const { getEventById, checkInAttendee } = useEvents();
   
   const [event, setEvent] = useState<any>(null);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
@@ -30,17 +31,30 @@ export default function CheckInScreen() {
     loadEventAndAttendees();
   }, [id]);
 
+  // Use Lodash for filtering attendees with better performance and fuzzy matching
   useEffect(() => {
     if (searchQuery.trim() === '') {
       setFilteredAttendees(attendees);
     } else {
-      const query = searchQuery.toLowerCase();
-      const filtered = attendees.filter(
-        attendee => 
-          attendee.name.toLowerCase().includes(query) || 
-          (attendee.email && attendee.email.toLowerCase().includes(query)) ||
-          (attendee.phone && attendee.phone.includes(query))
-      );
+      // Normalize the search query (remove accents, lowercase)
+      const normalizedQuery = _.deburr(_.toLower(searchQuery.trim()));
+      
+      // Use Lodash filter with custom predicate for better search
+      const filtered = _.filter(attendees, (attendee: Attendee) => {
+        // Check name (normalized for better matching)
+        const nameMatch = _.includes(_.deburr(_.toLower(attendee.name)), normalizedQuery);
+        
+        // Check email if it exists
+        const emailMatch = attendee.email ? 
+          _.includes(_.toLower(attendee.email), normalizedQuery) : false;
+        
+        // Check phone if it exists (don't normalize phone numbers)
+        const phoneMatch = attendee.phone ? 
+          _.includes(attendee.phone, searchQuery.trim()) : false;
+          
+        return nameMatch || emailMatch || phoneMatch;
+      });
+      
       setFilteredAttendees(filtered);
     }
   }, [searchQuery, attendees]);
@@ -53,18 +67,15 @@ export default function CheckInScreen() {
       const eventData = await getEventById(id);
       setEvent(eventData);
       
-      // For now, we'll use dummy data for attendees
-      // In a real implementation, you would fetch attendees from the database
-      const dummyAttendees: Attendee[] = [
-        { id: '1', name: 'John Doe', email: 'john@example.com', checked_in: false },
-        { id: '2', name: 'Jane Smith', email: 'jane@example.com', checked_in: true, check_in_time: new Date().toISOString() },
-        { id: '3', name: 'Bob Johnson', email: 'bob@example.com', checked_in: false },
-        { id: '4', name: 'Alice Brown', email: 'alice@example.com', checked_in: false },
-        { id: '5', name: 'Charlie Davis', email: 'charlie@example.com', checked_in: true, check_in_time: new Date().toISOString() },
-      ];
-      
-      setAttendees(dummyAttendees);
-      setFilteredAttendees(dummyAttendees);
+      // Use the attendees from the event data
+      if (eventData && eventData.attendees) {
+        setAttendees(eventData.attendees);
+        setFilteredAttendees(eventData.attendees);
+      } else {
+        // If no attendees in event data, initialize with empty array
+        setAttendees([]);
+        setFilteredAttendees([]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load event and attendees');
       console.error('Error loading event and attendees:', err);
@@ -73,15 +84,25 @@ export default function CheckInScreen() {
     }
   };
 
-  const handleCheckIn = (attendeeId: string) => {
-    // In a real implementation, you would update the database
-    setAttendees(prevAttendees => 
-      prevAttendees.map(attendee => 
-        attendee.id === attendeeId 
-          ? { ...attendee, checked_in: true, check_in_time: new Date().toISOString() } 
-          : attendee
-      )
-    );
+  const handleCheckIn = async (attendeeId: string) => {
+    try {
+      // Update the database
+      const success = await checkInAttendee(attendeeId);
+      
+      if (success) {
+        // Update the local state
+        setAttendees(prevAttendees => 
+          prevAttendees.map(attendee => 
+            attendee.id === attendeeId 
+              ? { ...attendee, checked_in: true, check_in_time: new Date().toISOString() } 
+              : attendee
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error checking in attendee:', error);
+      Alert.alert('Error', 'Failed to check in attendee');
+    }
   };
 
   const handleAddAttendee = () => {
@@ -97,6 +118,7 @@ export default function CheckInScreen() {
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
+        <StatusBar barStyle="dark-content" backgroundColor={theme.colors.backgroundPrimary} />
         <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary }]}>
           <TouchableOpacity 
             style={styles.backButton} 
@@ -104,8 +126,8 @@ export default function CheckInScreen() {
           >
             <CaretLeft size={24} color={theme.colors.primary} weight="regular" />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Check-In</Text>
-          <View style={styles.headerRight} />
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: theme.colors.textPrimary }}>Check-In</Text>
+          <View style={{ width: 40 }} />
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -117,6 +139,7 @@ export default function CheckInScreen() {
   if (error || !event) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
+        <StatusBar barStyle="dark-content" backgroundColor={theme.colors.backgroundPrimary} />
         <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary }]}>
           <TouchableOpacity 
             style={styles.backButton} 
@@ -124,8 +147,8 @@ export default function CheckInScreen() {
           >
             <CaretLeft size={24} color={theme.colors.primary} weight="regular" />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Check-In</Text>
-          <View style={styles.headerRight} />
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: theme.colors.textPrimary }}>Check-In</Text>
+          <View style={{ width: 40 }} />
         </View>
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: theme.colors.error }]}>
@@ -144,26 +167,37 @@ export default function CheckInScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
-      <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary }]}>
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+      <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
         <TouchableOpacity 
           style={styles.backButton} 
           onPress={() => router.back()}
         >
-          <CaretLeft size={24} color={theme.colors.primary} weight="regular" />
+          <CaretLeft size={24} color="white" weight="regular" />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Check-In</Text>
-        <View style={styles.headerRight} />
+        <Text style={[styles.headerTitle, { color: "white" }]}>Check-In</Text>
+        <View style={{ width: 40 }} />
       </View>
 
       <View style={styles.eventInfoContainer}>
-        <Text style={[styles.eventName, { color: theme.colors.textPrimary }]}>{event.title}</Text>
-        <Text style={[styles.eventStats, { color: theme.colors.textSecondary }]}>
-          {attendees.filter(a => a.checked_in).length} / {attendees.length} checked in
-        </Text>
+        <View style={[styles.eventInfoCard, { backgroundColor: theme.colors.backgroundPrimary }]}>
+          <View style={styles.eventInfoHeader}>
+            <Text style={[styles.eventName, { color: theme.colors.textPrimary }]}>{event.title}</Text>
+            <View style={[styles.eventStatsBadge, { backgroundColor: `${theme.colors.primary}15` }]}>
+              <Users size={14} color={theme.colors.primary} weight="bold" />
+              <Text style={[styles.eventStats, { color: theme.colors.primary }]}>
+                {attendees.filter(a => a.checked_in).length} / {attendees.length}
+              </Text>
+            </View>
+          </View>
+          <Text style={[styles.eventDate, { color: theme.colors.textSecondary }]}>
+            {event.date ? new Date(event.date).toLocaleDateString() : ''}
+          </Text>
+        </View>
       </View>
 
-      <View style={[styles.searchContainer, { backgroundColor: theme.colors.backgroundPrimary }]}>
-        <View style={[styles.searchInputContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
+      <View style={styles.searchContainer}>
+        <View style={[styles.searchInputContainer, { backgroundColor: theme.colors.backgroundPrimary }]}>
           <MagnifyingGlass size={20} color={theme.colors.textSecondary} weight="regular" style={styles.searchIcon} />
           <TextInput
             style={[styles.searchInput, { color: theme.colors.textPrimary }]}
@@ -180,16 +214,20 @@ export default function CheckInScreen() {
           style={[styles.actionButton, { backgroundColor: theme.colors.backgroundPrimary }]}
           onPress={handleScanQR}
         >
-          <QrCode size={20} color={theme.colors.primary} weight="regular" style={styles.actionIcon} />
-          <Text style={[styles.actionButtonText, { color: theme.colors.primary }]}>Scan QR</Text>
+          <View style={[styles.actionIconContainer, { backgroundColor: `${theme.colors.primary}15` }]}>
+            <QrCode size={24} color={theme.colors.primary} weight="bold" />
+          </View>
+          <Text style={[styles.actionButtonText, { color: theme.colors.textPrimary }]}>Scan QR</Text>
         </TouchableOpacity>
         
         <TouchableOpacity 
           style={[styles.actionButton, { backgroundColor: theme.colors.backgroundPrimary }]}
           onPress={handleAddAttendee}
         >
-          <UserCirclePlus size={20} color={theme.colors.primary} weight="regular" style={styles.actionIcon} />
-          <Text style={[styles.actionButtonText, { color: theme.colors.primary }]}>Add Attendee</Text>
+          <View style={[styles.actionIconContainer, { backgroundColor: `${theme.colors.primary}15` }]}>
+            <UserCirclePlus size={24} color={theme.colors.primary} weight="bold" />
+          </View>
+          <Text style={[styles.actionButtonText, { color: theme.colors.textPrimary }]}>Add Attendee</Text>
         </TouchableOpacity>
       </View>
 
@@ -205,8 +243,8 @@ export default function CheckInScreen() {
               )}
             </View>
             {item.checked_in ? (
-              <View style={[styles.checkedInBadge, { backgroundColor: theme.colors.success + '20' }]}>
-                <CheckCircle size={16} color={theme.colors.success} weight="fill" style={styles.checkedInIcon} />
+              <View style={[styles.checkedInBadge, { backgroundColor: theme.colors.success + '15' }]}>
+                <CheckCircle size={16} color={theme.colors.success} weight="bold" style={styles.checkedInIcon} />
                 <Text style={[styles.checkedInText, { color: theme.colors.success }]}>Checked In</Text>
               </View>
             ) : (
@@ -241,17 +279,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
   },
   backButton: {
-    padding: 8,
-  },
-  headerRight: {
     width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   loadingContainer: {
     flex: 1,
@@ -281,25 +321,55 @@ const styles = StyleSheet.create({
   eventInfoContainer: {
     padding: 16,
   },
+  eventInfoCard: {
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  eventInfoHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   eventName: {
     fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 4,
+    flex: 1,
+  },
+  eventStatsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
   },
   eventStats: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  eventDate: {
     fontSize: 14,
   },
   searchContainer: {
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
   },
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   searchIcon: {
     marginRight: 8,
@@ -316,18 +386,27 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 12,
-    borderRadius: 8,
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  actionIcon: {
-    marginRight: 8,
+  actionIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
   },
   actionButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   attendeeList: {
     padding: 16,
@@ -337,15 +416,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 12,
     marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   attendeeInfo: {
     flex: 1,
   },
   attendeeName: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
     marginBottom: 4,
   },
   attendeeEmail: {
@@ -363,7 +447,7 @@ const styles = StyleSheet.create({
   },
   checkedInText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   checkInButton: {
     paddingHorizontal: 16,

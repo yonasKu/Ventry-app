@@ -9,6 +9,17 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/components/useColorScheme';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { EventProvider } from '@/context/EventContext';
+import { initDatabase } from '../services/DatabaseService';
+
+// Initialize the database on app startup
+try {
+  initDatabase();
+  console.log("Database initialized successfully on app start.");
+} catch (error) {
+  console.error("CRITICAL: Failed to initialize database on app start:", error);
+  // Depending on your app's needs, you might want to show an error message
+  // or prevent the app from fully loading if the DB is essential.
+}
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -57,6 +68,7 @@ function RootLayoutNav() {
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="create-event" options={{ headerShown: false }} />
             <Stack.Screen name="event/[id]" options={{ headerShown: false }} />
             <Stack.Screen name="event/edit/[id]" options={{ headerShown: false }} />
             <Stack.Screen name="event/check-in/[id]" options={{ headerShown: false }} />

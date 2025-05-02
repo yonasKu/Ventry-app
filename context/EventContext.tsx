@@ -1,7 +1,10 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { nanoid } from 'nanoid/non-secure';
-import { EventsDB, initDatabase, Event } from '../services/DatabaseService';
+import { DatabaseService, Event, Attendee } from '../services/DatabaseService';
 import { Alert } from 'react-native';
+
+// Create an instance of the DatabaseService
+const dbService = new DatabaseService();
 
 // Define the EventContext type
 interface EventContextType {
@@ -9,10 +12,14 @@ interface EventContextType {
   loading: boolean;
   error: string | null;
   refreshEvents: () => Promise<void>;
-  getEventById: (id: string) => Promise<Event | null>;
+  getEventById: (id: string) => Promise<(Event & { attendees?: Attendee[] }) | null>;
   createEvent: (event: Omit<Event, 'id' | 'created_at' | 'updated_at' | 'attendees_count' | 'checked_in_count'>) => Promise<Event>;
-  updateEvent: (event: Event) => Promise<Event>;
+  updateEvent: (id: string, eventData: Partial<Omit<Event, 'id' | 'created_at' | 'updated_at'>>) => Promise<boolean>;
   deleteEvent: (id: string) => Promise<boolean>;
+  getAttendees: (eventId: string) => Promise<Attendee[]>;
+  addAttendee: (eventId: string, attendeeData: { name: string, email?: string, phone?: string }) => Promise<Attendee>;
+  checkInAttendee: (attendeeId: string) => Promise<boolean>;
+  deleteAttendee: (attendeeId: string) => Promise<boolean>;
 }
 
 // Create the context
@@ -27,40 +34,22 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Initialize the database and load events
   useEffect(() => {
-    const initialize = async () => {
-      try {
-        console.log('Initializing database...');
-        await initDatabase();
-        console.log('Database initialized successfully');
-        setInitialized(true);
-      } catch (err) {
-        console.error('Error initializing database:', err);
-        setError('Failed to initialize database');
-        setLoading(false);
-        Alert.alert(
-          'Database Error',
-          'There was an error initializing the database. Some features may not work correctly.',
-          [{ text: 'OK' }]
-        );
-      }
-    };
-
-    initialize();
+    console.log('EventContext initialized');
+    setInitialized(true);
   }, []);
 
-  // Load events when the database is initialized
   useEffect(() => {
     if (initialized) {
       refreshEvents();
     }
   }, [initialized]);
 
-  // Refresh events
+  // Refresh events - async for better UI response with larger datasets
   const refreshEvents = async () => {
     try {
       setLoading(true);
       console.log('Fetching events...');
-      const fetchedEvents = await EventsDB.getEvents();
+      const fetchedEvents = await dbService.getEventsAsync();
       console.log('Fetched events:', fetchedEvents);
       setEvents(fetchedEvents || []);
       setError(null);
@@ -74,11 +63,11 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  // Get event by ID
+  // Get event by ID - async
   const getEventById = async (id: string) => {
     try {
       console.log(`Getting event with ID: ${id}`);
-      const event = await EventsDB.getEventById(id);
+      const event = await dbService.getEventByIdAsync(id);
       return event;
     } catch (err) {
       console.error('Error getting event by ID:', err);
@@ -87,82 +76,125 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  // Create a new event
+  // Create a new event - async
   const createEvent = async (eventData: Omit<Event, 'id' | 'created_at' | 'updated_at' | 'attendees_count' | 'checked_in_count'>) => {
     try {
-      const eventId = nanoid();
-      console.log('Creating event with ID:', eventId);
-      console.log('Event data:', eventData);
+      console.log('Creating event with data:', eventData);
       
-      const newEvent = await EventsDB.createEvent({
-        id: eventId,
-        ...eventData
-      });
+      // The addEventAsync method from DatabaseService now handles ID generation
+      const newEvent = await dbService.addEventAsync(eventData);
       
       console.log('Event created successfully:', newEvent);
-      await refreshEvents();
+      setEvents(prev => [newEvent, ...prev]);
       return newEvent;
     } catch (err) {
       console.error('Error creating event:', err);
       setError('Failed to create event');
-      Alert.alert(
-        'Error',
-        'Failed to create event. Please try again.',
-        [{ text: 'OK' }]
-      );
       throw err;
     }
   };
 
-  // Update an event
-  const updateEvent = async (event: Event) => {
+  // Update an event - async
+  const updateEvent = async (id: string, eventData: Partial<Omit<Event, 'id' | 'created_at' | 'updated_at'>>) => {
     try {
-      console.log('Updating event:', event);
-      const updatedEvent = await EventsDB.updateEvent(event);
-      await refreshEvents();
-      return updatedEvent;
+      console.log('Updating event:', id);
+      const success = await dbService.updateEventAsync(id, eventData);
+      
+      if (success) {
+        // If update was successful, refresh the events
+        await refreshEvents();
+        return true;
+      }
+      return false;
     } catch (err) {
       console.error('Error updating event:', err);
       setError('Failed to update event');
-      Alert.alert(
-        'Error',
-        'Failed to update event. Please try again.',
-        [{ text: 'OK' }]
-      );
       throw err;
     }
   };
 
-  // Delete an event
+  // Delete an event - async
   const deleteEvent = async (id: string) => {
     try {
-      console.log(`Deleting event with ID: ${id}`);
-      const result = await EventsDB.deleteEvent(id);
-      await refreshEvents();
-      return result;
+      console.log('Deleting event:', id);
+      const success = await dbService.deleteEventAsync(id);
+      
+      if (success) {
+        // Remove the event from the state
+        setEvents(prev => prev.filter(e => e.id !== id));
+      }
+      return success;
     } catch (err) {
       console.error('Error deleting event:', err);
       setError('Failed to delete event');
-      Alert.alert(
-        'Error',
-        'Failed to delete event. Please try again.',
-        [{ text: 'OK' }]
-      );
+      return false;
+    }
+  };
+
+  // Get attendees for an event - async for large lists
+  const getAttendees = async (eventId: string) => {
+    try {
+      console.log(`Getting attendees for event ID: ${eventId}`);
+      return await dbService.getAttendeesAsync(eventId);
+    } catch (err) {
+      console.error('Error getting attendees:', err);
+      setError('Failed to get attendees');
+      return [];
+    }
+  };
+
+  // Add attendee - async
+  const addAttendee = async (eventId: string, attendeeData: { name: string, email?: string, phone?: string }) => {
+    try {
+      console.log(`Adding attendee to event ID: ${eventId}`);
+      const newAttendee = await dbService.addAttendeeAsync(eventId, attendeeData);
+      return newAttendee;
+    } catch (err) {
+      console.error('Error adding attendee:', err);
+      setError('Failed to add attendee');
       throw err;
+    }
+  };
+
+  // Check in attendee - async
+  const checkInAttendee = async (attendeeId: string) => {
+    try {
+      console.log(`Checking in attendee ID: ${attendeeId}`);
+      return await dbService.checkInAttendeeAsync(attendeeId);
+    } catch (err) {
+      console.error('Error checking in attendee:', err);
+      setError('Failed to check in attendee');
+      return false;
+    }
+  };
+
+  // Delete attendee - async
+  const deleteAttendee = async (attendeeId: string) => {
+    try {
+      console.log(`Deleting attendee ID: ${attendeeId}`);
+      return await dbService.deleteAttendeeAsync(attendeeId);
+    } catch (err) {
+      console.error('Error deleting attendee:', err);
+      setError('Failed to delete attendee');
+      return false;
     }
   };
 
   return (
-    <EventContext.Provider
-      value={{
-        events,
-        loading,
-        error,
-        refreshEvents,
-        getEventById,
-        createEvent,
-        updateEvent,
+    <EventContext.Provider 
+      value={{ 
+        events, 
+        loading, 
+        error, 
+        refreshEvents, 
+        getEventById, 
+        createEvent, 
+        updateEvent, 
         deleteEvent,
+        getAttendees,
+        addAttendee,
+        checkInAttendee,
+        deleteAttendee
       }}
     >
       {children}

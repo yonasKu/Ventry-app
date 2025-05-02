@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, StatusBar } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { CaretLeft, Check, Calendar, Clock } from 'phosphor-react-native';
+import { CaretLeft, Check, Calendar, Clock, MapPin, Users, NotePencil } from 'phosphor-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../../../context/ThemeContext';
 import { useEvents } from '../../../context/EventContext';
@@ -128,6 +128,7 @@ export default function EditEventScreen() {
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
+        <StatusBar barStyle="dark-content" backgroundColor={theme.colors.backgroundPrimary} />
         <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary }]}>
           <TouchableOpacity 
             style={styles.backButton} 
@@ -135,8 +136,8 @@ export default function EditEventScreen() {
           >
             <CaretLeft size={24} color={theme.colors.primary} weight="regular" />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Edit Event</Text>
-          <View style={styles.headerRight} />
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: theme.colors.textPrimary }}>Edit Event</Text>
+          <View style={{ width: 40 }} />
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -148,6 +149,7 @@ export default function EditEventScreen() {
   if (error) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
+        <StatusBar barStyle="dark-content" backgroundColor={theme.colors.backgroundPrimary} />
         <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary }]}>
           <TouchableOpacity 
             style={styles.backButton} 
@@ -155,8 +157,8 @@ export default function EditEventScreen() {
           >
             <CaretLeft size={24} color={theme.colors.primary} weight="regular" />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Edit Event</Text>
-          <View style={styles.headerRight} />
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: theme.colors.textPrimary }}>Edit Event</Text>
+          <View style={{ width: 40 }} />
         </View>
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: theme.colors.error }]}>
@@ -179,121 +181,137 @@ export default function EditEventScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
-        <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary }]}>
+        <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+        <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
           <TouchableOpacity 
             style={styles.backButton} 
             onPress={() => router.back()}
           >
-            <CaretLeft size={24} color={theme.colors.primary} weight="regular" />
+            <CaretLeft size={24} color="white" weight="regular" />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Edit Event</Text>
+          <Text style={[styles.headerTitle, { color: "white" }]}>Edit Event</Text>
           <TouchableOpacity 
             style={[
               styles.saveButton, 
               { 
-                backgroundColor: eventName && !isSubmitting ? theme.colors.primary : theme.colors.border,
-                opacity: eventName && !isSubmitting ? 1 : 0.5,
+                backgroundColor: eventName && !isSubmitting ? 'white' : 'rgba(255,255,255,0.5)',
+                opacity: eventName && !isSubmitting ? 1 : 0.7,
               }
             ]} 
             onPress={handleUpdateEvent}
             disabled={!eventName || isSubmitting}
           >
-            <Check size={20} color="white" weight="bold" />
+            <Check size={20} color={theme.colors.primary} weight="bold" />
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.formContainer}>
-          <View style={[styles.inputGroup, { borderBottomColor: theme.colors.border }]}>
-            <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Event Name *</Text>
-            <TextInput
-              style={[styles.input, { color: theme.colors.textPrimary }]}
-              placeholder="Enter event name"
-              placeholderTextColor={theme.colors.textTertiary}
-              value={eventName}
-              onChangeText={setEventName}
-            />
-          </View>
-
-          <View style={[styles.inputGroup, { borderBottomColor: theme.colors.border }]}>
-            <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Location</Text>
-            <TextInput
-              style={[styles.input, { color: theme.colors.textPrimary }]}
-              placeholder="Enter location"
-              placeholderTextColor={theme.colors.textTertiary}
-              value={eventLocation}
-              onChangeText={setEventLocation}
-            />
-          </View>
-
-          <View style={[styles.inputGroup, { borderBottomColor: theme.colors.border }]}>
-            <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Date</Text>
-            <TouchableOpacity 
-              style={styles.dateTimeButton}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <Calendar size={20} color={theme.colors.primary} weight="regular" style={styles.dateTimeIcon} />
-              <Text style={[styles.dateTimeText, { color: theme.colors.textPrimary }]}>
-                {formatDate(eventDate)}
-              </Text>
-            </TouchableOpacity>
-            {showDatePicker && (
-              <DateTimePicker
-                value={eventDate}
-                mode="date"
-                display="spinner"
-                onChange={handleDateChange}
+        <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
+          <View style={styles.formCard}>
+            <View style={[styles.inputGroup, { borderBottomColor: theme.colors.border }]}>
+              <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Event Name *</Text>
+              <TextInput
+                style={[styles.input, { color: theme.colors.textPrimary }]}
+                placeholder="Enter event name"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={eventName}
+                onChangeText={setEventName}
+                editable={!isSubmitting}
               />
-            )}
-          </View>
+            </View>
 
-          <View style={[styles.inputGroup, { borderBottomColor: theme.colors.border }]}>
-            <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Time</Text>
-            <TouchableOpacity 
-              style={styles.dateTimeButton}
-              onPress={() => setShowTimePicker(true)}
-            >
-              <Clock size={20} color={theme.colors.primary} weight="regular" style={styles.dateTimeIcon} />
-              <Text style={[styles.dateTimeText, { color: theme.colors.textPrimary }]}>
-                {formatTime(eventTime)}
-              </Text>
-            </TouchableOpacity>
-            {showTimePicker && (
-              <DateTimePicker
-                value={eventTime}
-                mode="time"
-                display="spinner"
-                onChange={handleTimeChange}
+            <View style={[styles.inputGroup, { borderBottomColor: theme.colors.border }]}>
+              <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Location</Text>
+              <TextInput
+                style={[styles.input, { color: theme.colors.textPrimary }]}
+                placeholder="Enter location"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={eventLocation}
+                onChangeText={setEventLocation}
               />
-            )}
-          </View>
+            </View>
 
-          <View style={[styles.inputGroup, { borderBottomColor: theme.colors.border }]}>
-            <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Expected Attendees</Text>
-            <TextInput
-              style={[styles.input, { color: theme.colors.textPrimary }]}
-              placeholder="Enter number of expected attendees"
-              placeholderTextColor={theme.colors.textTertiary}
-              keyboardType="number-pad"
-              value={expectedAttendees}
-              onChangeText={setExpectedAttendees}
-            />
-          </View>
+            <View style={[styles.inputGroup, { borderBottomColor: theme.colors.border }]}>
+              <View style={styles.labelRow}>
+                <Calendar size={16} color={theme.colors.textSecondary} weight="regular" />
+                <Text style={[styles.label, { color: theme.colors.textSecondary, marginLeft: 6 }]}>Date</Text>
+              </View>
+              <TouchableOpacity 
+                style={styles.dateTimeButton}
+                onPress={() => setShowDatePicker(true)}
+                disabled={isSubmitting}
+              >
+                <Text style={[styles.dateTimeText, { color: theme.colors.textPrimary }]}>
+                  {formatDate(eventDate)}
+                </Text>
+              </TouchableOpacity>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={eventDate}
+                  mode="date"
+                  display="spinner"
+                  onChange={handleDateChange}
+                />
+              )}
+            </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Notes</Text>
-            <TextInput
-              style={[styles.textArea, { color: theme.colors.textPrimary, backgroundColor: theme.colors.backgroundPrimary }]}
-              placeholder="Enter any additional notes"
-              placeholderTextColor={theme.colors.textTertiary}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-              value={eventNotes}
-              onChangeText={setEventNotes}
-            />
-          </View>
+            <View style={[styles.inputGroup, { borderBottomColor: theme.colors.border }]}>
+              <View style={styles.labelRow}>
+                <Clock size={16} color={theme.colors.textSecondary} weight="regular" />
+                <Text style={[styles.label, { color: theme.colors.textSecondary, marginLeft: 6 }]}>Time</Text>
+              </View>
+              <TouchableOpacity 
+                style={styles.dateTimeButton}
+                onPress={() => setShowTimePicker(true)}
+                disabled={isSubmitting}
+              >
+                <Text style={[styles.dateTimeText, { color: theme.colors.textPrimary }]}>
+                  {formatTime(eventTime)}
+                </Text>
+              </TouchableOpacity>
+              {showTimePicker && (
+                <DateTimePicker
+                  value={eventTime}
+                  mode="time"
+                  display="spinner"
+                  onChange={handleTimeChange}
+                />
+              )}
+            </View>
 
-          <View style={styles.spacer} />
+            <View style={[styles.inputGroup, { borderBottomColor: theme.colors.border }]}>
+              <View style={styles.labelRow}>
+                <Users size={16} color={theme.colors.textSecondary} weight="regular" />
+                <Text style={[styles.label, { color: theme.colors.textSecondary, marginLeft: 6 }]}>Expected Attendees</Text>
+              </View>
+              <TextInput
+                style={[styles.input, { color: theme.colors.textPrimary }]}
+                placeholder="Enter expected number of attendees"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={expectedAttendees}
+                onChangeText={setExpectedAttendees}
+                keyboardType="number-pad"
+                editable={!isSubmitting}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <View style={styles.labelRow}>
+                <NotePencil size={16} color={theme.colors.textSecondary} weight="regular" />
+                <Text style={[styles.label, { color: theme.colors.textSecondary, marginLeft: 6 }]}>Notes</Text>
+              </View>
+              <TextInput
+                style={[styles.textArea, { color: theme.colors.textPrimary, borderColor: theme.colors.border }]}
+                placeholder="Enter notes about the event"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={eventNotes}
+                onChangeText={setEventNotes}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+                editable={!isSubmitting}
+              />
+            </View>
+          </View>
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
@@ -309,17 +327,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerRight: {
-    width: 40,
   },
   saveButton: {
     width: 40,
@@ -355,39 +375,48 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     flex: 1,
-    padding: 20,
+    padding: 16,
+  },
+  formCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   inputGroup: {
-    marginBottom: 20,
-    paddingBottom: 15,
+    marginBottom: 24,
+    paddingBottom: 8,
     borderBottomWidth: 1,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   label: {
     fontSize: 14,
-    marginBottom: 8,
   },
   input: {
     fontSize: 16,
     paddingVertical: 8,
   },
   dateTimeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingVertical: 8,
-  },
-  dateTimeIcon: {
-    marginRight: 10,
   },
   dateTimeText: {
     fontSize: 16,
   },
   textArea: {
     fontSize: 16,
-    padding: 12,
-    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderRadius: 12,
     minHeight: 100,
-  },
-  spacer: {
-    height: 40,
   },
 });
