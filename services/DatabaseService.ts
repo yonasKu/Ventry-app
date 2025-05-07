@@ -450,7 +450,7 @@ export class DatabaseService {
     }
   }
 
-  // Check-in an Attendee for an Event
+  // Toggle check-in status of an Attendee for an Event
   checkInAttendee(attendeeId: string): boolean {
     const now = new Date().toISOString();
     let success = false;
@@ -463,31 +463,31 @@ export class DatabaseService {
         return false;
       }
 
-      // Only proceed if not already checked in
-      if (attendee.checked_in === 0) {
-        db.withTransactionSync(() => {
-          // Update attendee status
-          const updateResult = db.runSync(
-            'UPDATE attendees SET checked_in = 1, updated_at = ? WHERE id = ?;',
-            [now, attendeeId]
-          );
+      db.withTransactionSync(() => {
+        // Toggle the checked_in status
+        const newStatus = attendee.checked_in === 0 ? 1 : 0;
+        const checkInTime = newStatus === 1 ? now : null;
+        
+        // Update attendee status
+        const updateResult = db.runSync(
+          'UPDATE attendees SET checked_in = ?, check_in_time = ?, updated_at = ? WHERE id = ?;',
+          [newStatus, checkInTime, now, attendeeId]
+        );
 
-          if (updateResult.changes > 0) {
-            // Increment checked_in count for the event
-            db.runSync(
-              'UPDATE events SET checked_in_count = checked_in_count + 1, updated_at = ? WHERE id = ?;',
-              [now, attendee.event_id]
-            );
-            success = true;
-          }
-        });
-      } else {
-        // Already checked in, consider it a success (idempotent)
-        success = true;
-      }
+        if (updateResult.changes > 0) {
+          // Update checked_in count for the event (increment or decrement)
+          const countChange = newStatus === 1 ? 1 : -1;
+          db.runSync(
+            'UPDATE events SET checked_in_count = checked_in_count + ?, updated_at = ? WHERE id = ?;',
+            [countChange, now, attendee.event_id]
+          );
+          success = true;
+        }
+      });
+      
       return success;
     } catch (error) {
-      console.error('Error checking in attendee:', error);
+      console.error('Error toggling check-in status for attendee:', error);
       throw error;
     }
   }

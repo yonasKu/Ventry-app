@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, TextInput, FlatList, ActivityIndicator, Alert, StatusBar } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, TextInput, FlatList, RefreshControl, ActivityIndicator, Alert, StatusBar } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { CaretLeft, MagnifyingGlass, UserCirclePlus, DotsThreeVertical, Trash, PencilSimple, Users, Calendar, CheckCircle } from 'phosphor-react-native';
+import { CaretLeft, MagnifyingGlass, UserCirclePlus, DotsThreeVertical, Trash, PencilSimple, Users, Calendar, CheckCircle, QrCode, Eye } from 'phosphor-react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { useEvents } from '../../../context/EventContext';
 import * as _ from 'lodash';
@@ -25,6 +25,7 @@ export default function ManageAttendeesScreen() {
   const [filteredAttendees, setFilteredAttendees] = useState<Attendee[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedAttendee, setSelectedAttendee] = useState<string | null>(null);
 
@@ -53,20 +54,60 @@ export default function ManageAttendeesScreen() {
         const phoneMatch = attendee.phone ? 
           _.includes(attendee.phone, searchQuery.trim()) : false;
           
-        return nameMatch || emailMatch || phoneMatch;
+        // Check check-in status
+        const checkInMatch = 
+          (normalizedQuery === 'checked' || normalizedQuery === 'checked in') && attendee.checked_in ||
+          (normalizedQuery === 'not checked' || normalizedQuery === 'not checked in') && !attendee.checked_in;
+          
+        return nameMatch || emailMatch || phoneMatch || checkInMatch;
       });
       
-      setFilteredAttendees(filtered);
+      // Sort results by relevance - exact matches first, then partial matches
+      const sortedResults = _.sortBy(filtered, (attendee: Attendee) => {
+        // Calculate a relevance score (lower is better)
+        let score = 0;
+        
+        // Exact name match gets highest priority
+        if (_.toLower(attendee.name) === normalizedQuery) {
+          score -= 1000;
+        }
+        // Name starts with query
+        else if (_.startsWith(_.toLower(attendee.name), normalizedQuery)) {
+          score -= 500;
+        }
+        // Name contains query
+        else if (_.includes(_.toLower(attendee.name), normalizedQuery)) {
+          score -= 100;
+        }
+        
+        // Email exact match
+        if (attendee.email && _.toLower(attendee.email) === normalizedQuery) {
+          score -= 50;
+        }
+        
+        // Phone exact match
+        if (attendee.phone && attendee.phone === searchQuery.trim()) {
+          score -= 25;
+        }
+        
+        return score;
+      });
+      
+      setFilteredAttendees(sortedResults);
     }
   }, [searchQuery, attendees]);
 
-  const loadEventAndAttendees = async () => {
+  const loadEventAndAttendees = async (showFullLoading = true) => {
     if (!id) return;
     
-    setIsLoading(true);
+    if (showFullLoading) {
+      setIsLoading(true);
+    }
+    
     try {
       const eventData = await getEventById(id);
       setEvent(eventData);
+      setError(null);
       
       // Get attendees from the event data
       if (eventData && eventData.attendees) {
@@ -82,12 +123,23 @@ export default function ManageAttendeesScreen() {
       console.error('Error loading event and attendees:', err);
     } finally {
       setIsLoading(false);
+      setRefreshing(false);
     }
+  };
+  
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadEventAndAttendees(false);
   };
 
   const handleAddAttendee = () => {
     // Navigate to add attendee screen
     router.push(`/event/add-attendee/${id}`);
+  };
+
+  const handleViewAttendeeDetails = (attendeeId: string) => {
+    // Navigate to attendee details screen
+    router.push(`/event/attendee-details/${id}?attendeeId=${attendeeId}`);
   };
 
   const handleEditAttendee = (attendeeId: string) => {
@@ -283,7 +335,7 @@ export default function ManageAttendeesScreen() {
           <MagnifyingGlass size={20} color={theme.colors.textSecondary} weight="regular" style={styles.searchIcon} />
           <TextInput
             style={[styles.searchInput, { color: theme.colors.textPrimary }]}
-            placeholder="Search by name, email, or phone"
+            placeholder="Search by name, email, phone or check-in status"
             placeholderTextColor={theme.colors.textTertiary}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -318,6 +370,14 @@ export default function ManageAttendeesScreen() {
       <FlatList
         data={filteredAttendees}
         keyExtractor={(item) => item.id}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
         renderItem={({ item }) => (
           <View style={[styles.attendeeCard, { backgroundColor: theme.colors.backgroundPrimary }, theme.shadows.sm]}>
             <View style={styles.attendeeInfo}>
@@ -349,13 +409,32 @@ export default function ManageAttendeesScreen() {
               </TouchableOpacity>
             </View>
             
-            {/* Menu button */}
-            <TouchableOpacity 
-              style={styles.menuButton}
-              onPress={() => toggleAttendeeMenu(item.id)}
-            >
-              <DotsThreeVertical size={20} color={theme.colors.textSecondary} weight="regular" />
-            </TouchableOpacity>
+            {/* Action Buttons */}
+            <View style={styles.actionButtons}>
+              {/* View Details Button */}
+              <TouchableOpacity 
+                style={styles.iconButton}
+                onPress={() => router.push(`/event/attendee-details/${id}?attendeeId=${item.id}`)}
+              >
+                <Eye size={20} color={theme.colors.primary} weight="regular" />
+              </TouchableOpacity>
+              
+              {/* QR Code Button */}
+              <TouchableOpacity 
+                style={styles.iconButton}
+                onPress={() => router.push(`/event/attendee-details/${id}?attendeeId=${item.id}`)}
+              >
+                <QrCode size={20} color={theme.colors.primary} weight="regular" />
+              </TouchableOpacity>
+              
+              {/* Menu button */}
+              <TouchableOpacity 
+                style={styles.menuButton}
+                onPress={() => toggleAttendeeMenu(item.id)}
+              >
+                <DotsThreeVertical size={20} color={theme.colors.textSecondary} weight="regular" />
+              </TouchableOpacity>
+            </View>
             
             {/* Dropdown menu - positioned absolutely */}
             {selectedAttendee === item.id && (
@@ -593,9 +672,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  menuButton: {
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconButton: {
     padding: 8,
-    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  menuButton: {
+    padding: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   menuPopupContainer: {
     position: 'fixed',

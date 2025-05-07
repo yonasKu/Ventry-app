@@ -1,18 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, TextInput, FlatList, ActivityIndicator, Alert, StatusBar } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, TextInput, FlatList, RefreshControl, ActivityIndicator, Alert, StatusBar } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { CaretLeft, MagnifyingGlass, CheckCircle, UserCirclePlus, QrCode, Users } from 'phosphor-react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { useEvents } from '../../../context/EventContext';
+import { Attendee as DatabaseAttendee } from '../../../services/DatabaseService';
 import * as _ from 'lodash';
 
+// Local Attendee type that matches the database structure
 type Attendee = {
   id: string;
+  event_id: string;
   name: string;
-  email?: string;
-  phone?: string;
+  email: string | null;
+  phone: string | null;
   checked_in: boolean;
-  check_in_time?: string;
+  check_in_time: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export default function CheckInScreen() {
@@ -25,6 +30,7 @@ export default function CheckInScreen() {
   const [filteredAttendees, setFilteredAttendees] = useState<Attendee[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,49 +65,86 @@ export default function CheckInScreen() {
     }
   }, [searchQuery, attendees]);
 
-  const loadEventAndAttendees = async () => {
+  const loadEventAndAttendees = async (showLoading = true) => {
     if (!id) return;
     
-    setIsLoading(true);
+    if (showLoading) {
+      setIsLoading(true);
+    }
+    
     try {
+      // Fetch event with attendees
       const eventData = await getEventById(id);
-      setEvent(eventData);
       
-      // Use the attendees from the event data
-      if (eventData && eventData.attendees) {
-        setAttendees(eventData.attendees);
-        setFilteredAttendees(eventData.attendees);
+      if (eventData) {
+        setEvent(eventData);
+        
+        if (eventData.attendees) {
+          // Sort attendees alphabetically by name and map to local Attendee type
+          const sortedAttendees = _.sortBy(eventData.attendees, [(a) => a.name.toLowerCase()])
+            .map(a => ({
+              id: a.id,
+              event_id: a.event_id,
+              name: a.name,
+              email: a.email || null,
+              phone: a.phone || null,
+              checked_in: a.checked_in,
+              check_in_time: a.check_in_time || null,
+              created_at: a.created_at,
+              updated_at: a.updated_at
+            }));
+            
+          setAttendees(sortedAttendees);
+          setFilteredAttendees(sortedAttendees);
+        } else {
+          setAttendees([]);
+          setFilteredAttendees([]);
+        }
       } else {
-        // If no attendees in event data, initialize with empty array
-        setAttendees([]);
-        setFilteredAttendees([]);
+        setError('Event not found');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load event and attendees');
-      console.error('Error loading event and attendees:', err);
+      console.error('Error loading event data:', err);
+      setError('Failed to load event data');
     } finally {
-      setIsLoading(false);
+      if (showLoading) {
+        setIsLoading(false);
+      }
+      setRefreshing(false);
     }
   };
+  
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadEventAndAttendees(false);
+  };
 
-  const handleCheckIn = async (attendeeId: string) => {
+  const handleToggleCheckIn = async (attendeeId: string) => {
     try {
-      // Update the database
+      // Find the current attendee to determine the current check-in status
+      const attendee = attendees.find(a => a.id === attendeeId);
+      if (!attendee) return;
+      
       const success = await checkInAttendee(attendeeId);
       
       if (success) {
-        // Update the local state
+        // Update the local state with toggled status
+        const newCheckedInStatus = !attendee.checked_in;
         setAttendees(prevAttendees => 
-          prevAttendees.map(attendee => 
-            attendee.id === attendeeId 
-              ? { ...attendee, checked_in: true, check_in_time: new Date().toISOString() } 
-              : attendee
+          prevAttendees.map(a => 
+            a.id === attendeeId 
+              ? { 
+                  ...a, 
+                  checked_in: newCheckedInStatus, 
+                  check_in_time: newCheckedInStatus ? new Date().toISOString() : null 
+                } 
+              : a
           )
         );
       }
     } catch (error) {
-      console.error('Error checking in attendee:', error);
-      Alert.alert('Error', 'Failed to check in attendee');
+      console.error('Error toggling check-in status:', error);
+      Alert.alert('Error', 'Failed to update check-in status');
     }
   };
 
@@ -156,7 +199,7 @@ export default function CheckInScreen() {
           </Text>
           <TouchableOpacity 
             style={[styles.retryButton, { backgroundColor: theme.colors.primary }]}
-            onPress={loadEventAndAttendees}
+            onPress={() => loadEventAndAttendees()}
           >
             <Text style={[styles.retryButtonText, { color: 'white' }]}>Retry</Text>
           </TouchableOpacity>
@@ -234,6 +277,14 @@ export default function CheckInScreen() {
       <FlatList
         data={filteredAttendees}
         keyExtractor={(item) => item.id}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
         renderItem={({ item }) => (
           <View style={[styles.attendeeCard, { backgroundColor: theme.colors.backgroundPrimary }]}>
             <View style={styles.attendeeInfo}>
@@ -242,19 +293,26 @@ export default function CheckInScreen() {
                 <Text style={[styles.attendeeEmail, { color: theme.colors.textSecondary }]}>{item.email}</Text>
               )}
             </View>
-            {item.checked_in ? (
-              <View style={[styles.checkedInBadge, { backgroundColor: theme.colors.success + '15' }]}>
-                <CheckCircle size={16} color={theme.colors.success} weight="bold" style={styles.checkedInIcon} />
-                <Text style={[styles.checkedInText, { color: theme.colors.success }]}>Checked In</Text>
-              </View>
-            ) : (
-              <TouchableOpacity 
-                style={[styles.checkInButton, { backgroundColor: theme.colors.primary }]}
-                onPress={() => handleCheckIn(item.id)}
-              >
+            <TouchableOpacity 
+              onPress={() => handleToggleCheckIn(item.id)}
+              style={item.checked_in ? 
+                [styles.checkedInBadge, { 
+                  backgroundColor: theme.colors.success + '15',
+                  borderWidth: 1,
+                  borderColor: theme.colors.success + '30'
+                }] : 
+                [styles.checkInButton, { backgroundColor: theme.colors.primary }]
+              }
+            >
+              {item.checked_in ? (
+                <>
+                  <CheckCircle size={16} color={theme.colors.success} weight="bold" style={styles.checkedInIcon} />
+                  <Text style={[styles.checkedInText, { color: theme.colors.success }]}>Tap to Uncheck</Text>
+                </>
+              ) : (
                 <Text style={styles.checkInButtonText}>Check In</Text>
-              </TouchableOpacity>
-            )}
+              )}
+            </TouchableOpacity>
           </View>
         )}
         contentContainerStyle={styles.attendeeList}

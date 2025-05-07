@@ -5,6 +5,7 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
+  RefreshControl,
   ActivityIndicator,
   Alert,
   StatusBar,
@@ -34,25 +35,36 @@ export default function EventDetailScreen() {
   const { getEventById, deleteEvent } = useEvents();
   const [event, setEvent] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadEvent();
   }, [id]);
 
-  const loadEvent = async () => {
+  const loadEvent = async (showFullLoading = true) => {
     if (!id) return;
 
-    setIsLoading(true);
+    if (showFullLoading) {
+      setIsLoading(true);
+    }
+    
     try {
       const eventData = await getEventById(id);
       setEvent(eventData);
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load event");
       console.error("Error loading event:", err);
     } finally {
       setIsLoading(false);
+      setRefreshing(false);
     }
+  };
+  
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadEvent(false);
   };
 
   const handleDeleteEvent = () => {
@@ -188,7 +200,7 @@ export default function EventDetailScreen() {
               styles.retryButton,
               { backgroundColor: theme.colors.primary },
             ]}
-            onPress={loadEvent}
+            onPress={() => loadEvent()}
           >
             <Text style={[styles.retryButtonText, { color: "white" }]}>
               Retry
@@ -228,6 +240,14 @@ export default function EventDetailScreen() {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
       >
         <View
           style={[
