@@ -12,7 +12,7 @@ type AttendeeCardProps = {
   };
   index: number;
   theme: any;
-  handleUpdateAttendee: (index: number, field: string, value: string) => void;
+  handleUpdateAttendee: (index: number, field: any, value: string) => void;
   handleRemoveAttendee: (index: number) => void;
 };
 

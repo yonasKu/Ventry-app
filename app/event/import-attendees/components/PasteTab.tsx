@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, TextInput } from 'react-native';
 import { ClipboardText, FileArrowUp } from 'phosphor-react-native';
+import { CSV_TEMPLATES } from '../../../../services/CsvService';
 
 type PasteTabProps = {
   theme: any;
@@ -10,6 +11,8 @@ type PasteTabProps = {
   handleImportFormat: (format: 'csv' | 'simple') => void;
   handlePaste: () => void;
   parseAttendees: () => void;
+  selectedTemplate: keyof typeof CSV_TEMPLATES;
+  onTemplateChange?: (template: keyof typeof CSV_TEMPLATES) => void;
 };
 
 const PasteTab = ({ 
@@ -19,7 +22,9 @@ const PasteTab = ({
   importFormat, 
   handleImportFormat, 
   handlePaste, 
-  parseAttendees 
+  parseAttendees,
+  selectedTemplate,
+  onTemplateChange
 }: PasteTabProps) => (
   <View style={[styles.tabContent, { backgroundColor: theme.colors.backgroundPrimary, borderWidth: 1, borderColor: 'rgba(0,0,0,0.1)' }]}>
     {/* Format Selector */}
@@ -85,7 +90,7 @@ const PasteTab = ({
         multiline
         placeholder={
           importFormat === 'csv' 
-            ? "name,email,phone\nJohn Doe,john@example.com,123-456-7890"
+            ? getTemplatePlaceholder(selectedTemplate)
             : "John Doe, john@example.com, 123-456-7890\nJane Smith, jane@example.com, 987-654-3210"
         }
         placeholderTextColor={theme.colors.textTertiary}
@@ -192,5 +197,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
+
+// Helper function to generate placeholder text based on selected template
+const getTemplatePlaceholder = (template: keyof typeof CSV_TEMPLATES): string => {
+  const columns = CSV_TEMPLATES[template].join(',');
+  
+  let exampleRow = '';
+  switch (template) {
+    case 'STANDARD':
+      exampleRow = 'John Doe,john@example.com,123-456-7890';
+      break;
+    case 'CONFERENCE':
+      exampleRow = 'John Doe,john@example.com,123-456-7890,Acme Inc.,Software Developer';
+      break;
+    case 'WORKSHOP':
+      exampleRow = 'John Doe,john@example.com,123-456-7890,intermediate';
+      break;
+    case 'NETWORKING':
+      exampleRow = 'John Doe,john@example.com,123-456-7890,technology,networking';
+      break;
+    default:
+      exampleRow = 'John Doe,john@example.com,123-456-7890';
+  }
+  
+  return `${columns}\n${exampleRow}`;
+};
 
 export default PasteTab;

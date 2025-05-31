@@ -1,18 +1,18 @@
 import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Text } from 'react-native';
 import { ClipboardText, UserPlus } from 'phosphor-react-native';
 
 type TabSelectorProps = {
-  activeTab: 'paste' | 'manual';
-  setActiveTab: (tab: 'paste' | 'manual') => void;
   theme: any;
+  activeTab: 'paste' | 'manual';
+  onTabChange: (tab: 'paste' | 'manual') => void;
 };
 
-const TabSelector = ({ activeTab, setActiveTab, theme }: TabSelectorProps) => (
+const TabSelector = ({ theme, activeTab, onTabChange }: TabSelectorProps) => (
   <View style={[styles.tabContainer, { backgroundColor: theme.colors.cardBackground }, theme.shadows.sm]}>
     <TouchableOpacity 
       style={[styles.tab, activeTab === 'paste' && [styles.activeTab, { borderBottomColor: theme.colors.primary }]]}
-      onPress={() => setActiveTab('paste')}
+      onPress={() => onTabChange('paste')}
     >
       <ClipboardText 
         size={18} 
@@ -25,7 +25,7 @@ const TabSelector = ({ activeTab, setActiveTab, theme }: TabSelectorProps) => (
     </TouchableOpacity>
     <TouchableOpacity 
       style={[styles.tab, activeTab === 'manual' && [styles.activeTab, { borderBottomColor: theme.colors.primary }]]}
-      onPress={() => setActiveTab('manual')}
+      onPress={() => onTabChange('manual')}
     >
       <UserPlus 
         size={18} 

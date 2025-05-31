@@ -1,18 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, TextInput, FlatList, RefreshControl, ActivityIndicator, Alert, StatusBar } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { CaretLeft, MagnifyingGlass, UserCirclePlus, DotsThreeVertical, Trash, PencilSimple, Users, Calendar, CheckCircle, QrCode, Eye } from 'phosphor-react-native';
+import { CaretLeft, MagnifyingGlass, UserCirclePlus, DotsThreeVertical, Trash, PencilSimple, Users, Calendar, CheckCircle, QrCode, Eye, FileArrowDown } from 'phosphor-react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { useEvents } from '../../../context/EventContext';
+import { Attendee as DatabaseAttendee } from '../../../services/DatabaseService';
 import * as _ from 'lodash';
 
+// Local Attendee type that matches the database Attendee type but with optional fields
 type Attendee = {
   id: string;
+  event_id: string;
   name: string;
-  email?: string;
-  phone?: string;
+  email: string | null;
+  phone: string | null;
   checked_in: boolean;
   check_in_time?: string;
+  created_at: string;
+  updated_at: string;
 };
 
 export default function ManageAttendeesScreen() {
@@ -127,9 +132,11 @@ export default function ManageAttendeesScreen() {
     }
   };
   
-  const onRefresh = () => {
+  // Handle refresh from pull-to-refresh gesture
+  const handleRefresh = async () => {
     setRefreshing(true);
-    loadEventAndAttendees(false);
+    await loadEventAndAttendees(false);
+    setRefreshing(false);
   };
 
   const handleAddAttendee = () => {
@@ -194,6 +201,10 @@ export default function ManageAttendeesScreen() {
   const handleImportAttendees = () => {
     // Navigate to import attendees screen
     router.push(`/event/import-attendees/${id}`);
+  };
+
+  const handleExportData = () => {
+    router.push(`/event/export/${id}`);
   };
 
   // Handle check-in/out functionality
@@ -373,7 +384,7 @@ export default function ManageAttendeesScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={handleRefresh}
             colors={[theme.colors.primary]}
             tintColor={theme.colors.primary}
           />
