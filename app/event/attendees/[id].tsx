@@ -22,8 +22,11 @@ type Attendee = {
 
 export default function ManageAttendeesScreen() {
   const theme = useTheme();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const { getEventById } = useEvents();
+  const { id, mode } = useLocalSearchParams<{ id: string, mode?: string }>();
+  const { getEventById, checkInAttendee } = useEvents();
+  
+  // Check if we're in QR mode
+  const isQRMode = mode === 'qr';
   
   const [event, setEvent] = useState<any>(null);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
@@ -292,7 +295,7 @@ export default function ManageAttendeesScreen() {
             </Text>
             <TouchableOpacity 
               style={[styles.retryButton, { backgroundColor: theme.colors.primary }]}
-              onPress={loadEventAndAttendees}
+              onPress={() => loadEventAndAttendees()}
             >
               <Text style={[styles.retryButtonText, { color: 'white' }]}>Retry</Text>
             </TouchableOpacity>
@@ -391,64 +394,85 @@ export default function ManageAttendeesScreen() {
         }
         renderItem={({ item }) => (
           <View style={[styles.attendeeCard, { backgroundColor: theme.colors.backgroundPrimary }, theme.shadows.sm]}>
-            <View style={styles.attendeeInfo}>
+            <TouchableOpacity 
+              style={styles.attendeeInfo}
+              onPress={() => {
+                if (isQRMode) {
+                  // Navigate to attendee QR code screen in QR mode
+                  router.push(`/event/attendee-qr/${item.id}`);
+                } else {
+                  // Default behavior - view details
+                  handleViewAttendeeDetails(item.id);
+                }
+              }}
+            >
               <Text style={[styles.attendeeName, { color: theme.colors.textPrimary }]}>{item.name}</Text>
               {item.email && (
                 <Text style={[styles.attendeeEmail, { color: theme.colors.textSecondary }]}>{item.email}</Text>
               )}
               
               {/* Check-in status button */}
-              <TouchableOpacity 
-                style={[
-                  styles.checkInButton, 
-                  { 
-                    backgroundColor: item.checked_in 
-                      ? theme.colors.success + '20' 
-                      : theme.colors.backgroundSecondary
-                  }
-                ]}
-                onPress={() => handleToggleCheckIn(item.id)}
-              >
-                {item.checked_in ? (
-                  <>
-                    <CheckCircle size={14} color={theme.colors.success} weight="fill" style={{ marginRight: 6 }} />
-                    <Text style={[styles.checkedInText, { color: theme.colors.success }]}>Checked In</Text>
-                  </>
-                ) : (
-                  <Text style={[styles.checkedInText, { color: theme.colors.textSecondary }]}>Not Checked In</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+              {!isQRMode && (
+                <TouchableOpacity 
+                  style={[
+                    styles.checkInButton, 
+                    { backgroundColor: item.checked_in ? theme.colors.success + '20' : theme.colors.backgroundSecondary }
+                  ]}
+                  onPress={() => handleToggleCheckIn(item.id)}
+                >
+                  {item.checked_in ? (
+                    <>
+                      <CheckCircle size={14} color={theme.colors.success} weight="fill" style={{ marginRight: 6 }} />
+                      <Text style={[styles.checkedInText, { color: theme.colors.success }]}>Checked In</Text>
+                    </>
+                  ) : (
+                    <Text style={[styles.checkedInText, { color: theme.colors.textSecondary }]}>Not Checked In</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
             
             {/* Action Buttons */}
             <View style={styles.actionButtons}>
-              {/* View Details Button */}
-              <TouchableOpacity 
-                style={styles.iconButton}
-                onPress={() => router.push(`/event/attendee-details/${id}?attendeeId=${item.id}`)}
-              >
-                <Eye size={20} color={theme.colors.primary} weight="regular" />
-              </TouchableOpacity>
-              
-              {/* QR Code Button */}
-              <TouchableOpacity 
-                style={styles.iconButton}
-                onPress={() => router.push(`/event/attendee-details/${id}?attendeeId=${item.id}`)}
-              >
-                <QrCode size={20} color={theme.colors.primary} weight="regular" />
-              </TouchableOpacity>
-              
-              {/* Menu button */}
-              <TouchableOpacity 
-                style={styles.menuButton}
-                onPress={() => toggleAttendeeMenu(item.id)}
-              >
-                <DotsThreeVertical size={20} color={theme.colors.textSecondary} weight="regular" />
-              </TouchableOpacity>
+              {isQRMode ? (
+                /* QR Code Button - prominent in QR mode */
+                <TouchableOpacity 
+                  style={styles.iconButton}
+                  onPress={() => router.push(`/event/attendee-qr/${item.id}`)}
+                >
+                  <QrCode size={20} color={theme.colors.primary} weight="bold" />
+                </TouchableOpacity>
+              ) : (
+                <>
+                  {/* View Details Button - only in normal mode */}
+                  <TouchableOpacity 
+                    style={styles.iconButton}
+                    onPress={() => handleViewAttendeeDetails(item.id)}
+                  >
+                    <Eye size={20} color={theme.colors.primary} weight="regular" />
+                  </TouchableOpacity>
+                  
+                  {/* QR Code Button - only in normal mode */}
+                  <TouchableOpacity 
+                    style={styles.iconButton}
+                    onPress={() => router.push(`/event/attendee-qr/${item.id}`)}
+                  >
+                    <QrCode size={20} color={theme.colors.primary} weight="regular" />
+                  </TouchableOpacity>
+                  
+                  {/* Menu button - only in normal mode */}
+                  <TouchableOpacity 
+                    style={styles.menuButton}
+                    onPress={() => toggleAttendeeMenu(item.id)}
+                  >
+                    <DotsThreeVertical size={20} color={theme.colors.textSecondary} weight="regular" />
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
             
             {/* Dropdown menu - positioned absolutely */}
-            {selectedAttendee === item.id && (
+            {!isQRMode && selectedAttendee === item.id && (
               <View 
                 style={[
                   styles.menuPopupContainer,
@@ -698,7 +722,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   menuPopupContainer: {
-    position: 'fixed',
+    position: 'absolute',
     top: 0,
     left: 0,
     right: 0,

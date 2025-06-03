@@ -26,7 +26,21 @@ const PasteTab = ({
   selectedTemplate,
   onTemplateChange
 }: PasteTabProps) => (
-  <View style={[styles.tabContent, { backgroundColor: theme.colors.backgroundPrimary, borderWidth: 1, borderColor: 'rgba(0,0,0,0.1)' }]}>
+  <View style={[
+    styles.tabContent, 
+    { 
+      backgroundColor: theme.colors.backgroundPrimary, 
+      borderWidth: 1, 
+      borderColor: 'rgba(0,0,0,0.05)' 
+    },
+    {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+    }
+  ]}>
     {/* Format Selector */}
     <View style={styles.formatSelector}>
       <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
@@ -36,7 +50,12 @@ const PasteTab = ({
         <TouchableOpacity
           style={[
             styles.formatButton,
-            importFormat === 'simple' ? [styles.activeFormat, { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }] : { borderColor: 'rgba(0,0,0,0.1)' }
+            importFormat === 'simple' ? 
+              [styles.activeFormat, { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }] : 
+              { 
+                backgroundColor: theme.colors.backgroundSecondary, 
+                borderColor: 'rgba(0,0,0,0.05)' 
+              }
           ]}
           onPress={() => handleImportFormat('simple')}
         >
@@ -50,13 +69,18 @@ const PasteTab = ({
         <TouchableOpacity
           style={[
             styles.formatButton,
-            importFormat === 'csv' ? [styles.activeFormat, { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }] : { borderColor: 'rgba(0,0,0,0.1)' }
+            importFormat === 'csv' ? 
+              [styles.activeFormat, { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }] : 
+              { 
+                backgroundColor: theme.colors.backgroundSecondary, 
+                borderColor: 'rgba(0,0,0,0.05)' 
+              }
           ]}
           onPress={() => handleImportFormat('csv')}
         >
           <Text style={[
             styles.formatButtonText,
-            { color: importFormat === 'csv' ? theme.colors.primary : theme.colors.textSecondary }
+            { color: importFormat === 'csv' ? 'white' : theme.colors.textSecondary }
           ]}>
             CSV
           </Text>
@@ -112,9 +136,10 @@ const PasteTab = ({
 
 const styles = StyleSheet.create({
   tabContent: {
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 16,
     marginBottom: 16,
+    backgroundColor: 'white',
   },
   formatSelector: {
     marginBottom: 16,
@@ -129,11 +154,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   formatButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 10,
     borderWidth: 1,
-    marginRight: 8,
+    marginRight: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
   },
   activeFormat: {
     borderWidth: 1,
@@ -155,10 +185,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#009688',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
   },
   pasteButtonText: {
     color: 'white',
@@ -168,14 +202,18 @@ const styles = StyleSheet.create({
   },
   textInput: {
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
-    borderRadius: 6,
-    padding: 12,
-    minHeight: 80,
+    borderColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 10,
+    padding: 14,
+    minHeight: 120,
     textAlignVertical: 'top',
     fontSize: 14,
     lineHeight: 20,
-    backgroundColor: '#f9f9f9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   actionButtonContainer: {
     alignItems: 'flex-end',
@@ -185,10 +223,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#009688',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
   },
   actionButtonText: {
     color: 'white',

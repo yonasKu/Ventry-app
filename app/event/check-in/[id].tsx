@@ -125,7 +125,8 @@ export default function CheckInScreen() {
       const attendee = attendees.find(a => a.id === attendeeId);
       if (!attendee) return;
       
-      const success = await checkInAttendee(attendeeId);
+      // Pass both attendeeId and event ID to the checkInAttendee function
+      const success = await checkInAttendee(attendeeId, id);
       
       if (success) {
         // Update the local state with toggled status

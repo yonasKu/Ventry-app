@@ -44,7 +44,9 @@ interface SQLiteResult {
 }
 
 // Open SQLite database
-const db = openDatabaseSync('ventry.db');
+console.log('Opening SQLite database...');
+let db = openDatabaseSync('ventry.db');
+console.log('SQLite database opened successfully');
 
 // Check if a column exists in a table
 function columnExists(tableName: string, columnName: string): boolean {
@@ -94,7 +96,9 @@ function migrateDatabase(): void {
 
 // Initialize database
 export function initDatabase(): void {
+  console.log('initDatabase function called');
   try {
+    console.log('Creating events table if not exists...');
     // Use runSync for non-query statements
     db.runSync(
       `CREATE TABLE IF NOT EXISTS events (
@@ -111,6 +115,7 @@ export function initDatabase(): void {
         checked_in_count INTEGER DEFAULT 0
       );`
     );
+    console.log('Creating attendees table if not exists...');
     // Create attendees table if it doesn't exist
     db.runSync(
       `CREATE TABLE IF NOT EXISTS attendees (
@@ -450,44 +455,104 @@ export class DatabaseService {
     }
   }
 
-  // Toggle check-in status of an Attendee for an Event
-  checkInAttendee(attendeeId: string): boolean {
-    const now = new Date().toISOString();
-    let success = false;
+  // Get a single Attendee by ID - Synchronous
+  getAttendeeById(attendeeId: string): Attendee | null {
     try {
-      // Fetch attendee first to get event_id and current checked_in status
-      const attendee = db.getFirstSync<AttendeeRaw>('SELECT event_id, checked_in FROM attendees WHERE id = ?;', [attendeeId]);
+      const rawAttendee = db.getFirstSync<AttendeeRaw>(
+        'SELECT * FROM attendees WHERE id = ?;',
+        [attendeeId]
+      );
 
-      if (!attendee) {
-        console.warn(`Attendee with ID ${attendeeId} not found for check-in.`);
-        return false;
+      if (!rawAttendee) {
+        return null;
       }
 
+      return {
+        ...rawAttendee,
+        checked_in: rawAttendee.checked_in === 1,
+      };
+    } catch (error) {
+      console.error(`Error getting attendee by ID ${attendeeId}:`, error);
+      throw error;
+    }
+  }
+
+  // Async wrapper for getAttendeeById
+  async getAttendeeByIdAsync(attendeeId: string): Promise<Attendee | null> {
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        try {
+          const result = this.getAttendeeById(attendeeId);
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      }, 0);
+    });
+  }
+
+  // Check-in an Attendee for an Event - Synchronous
+  checkInAttendee(attendeeId: string, eventIdFromQR: string): Attendee | null {
+    const now = new Date().toISOString();
+    
+    try {
+      console.log(`DatabaseService.checkInAttendee called with attendeeId: ${attendeeId}, eventIdFromQR: ${eventIdFromQR}`);
+      
+      // Fetch the attendee using the new getAttendeeById method
+      const existingAttendee = this.getAttendeeById(attendeeId);
+
+      if (!existingAttendee) {
+        console.warn(`Attendee with ID ${attendeeId} not found for check-in.`);
+        return null; // Attendee not found
+      }
+
+      console.log(`Found attendee: ${existingAttendee.name}, event_id: ${existingAttendee.event_id}`);
+      
+      // If no event ID is provided, use the attendee's registered event ID
+      const effectiveEventId = eventIdFromQR || existingAttendee.event_id;
+      
+      // Validate that the attendee belongs to the event we're checking into
+      if (existingAttendee.event_id !== effectiveEventId) {
+        console.warn(`Attendee ${attendeeId} (event ${existingAttendee.event_id}) is not registered for event ${effectiveEventId}.`);
+        return null; // Attendee not registered for this event
+      }
+
+      if (existingAttendee.checked_in) {
+        console.log(`Attendee ${attendeeId} is already checked in at ${existingAttendee.check_in_time}.`);
+        return existingAttendee; // Already checked in, return current status
+      }
+
+      let successfulCheckIn = false;
       db.withTransactionSync(() => {
-        // Toggle the checked_in status
-        const newStatus = attendee.checked_in === 0 ? 1 : 0;
-        const checkInTime = newStatus === 1 ? now : null;
-        
-        // Update attendee status
         const updateResult = db.runSync(
           'UPDATE attendees SET checked_in = ?, check_in_time = ?, updated_at = ? WHERE id = ?;',
-          [newStatus, checkInTime, now, attendeeId]
+          [1, now, now, attendeeId] // 1 for true
         );
 
         if (updateResult.changes > 0) {
-          // Update checked_in count for the event (increment or decrement)
-          const countChange = newStatus === 1 ? 1 : -1;
           db.runSync(
-            'UPDATE events SET checked_in_count = checked_in_count + ?, updated_at = ? WHERE id = ?;',
-            [countChange, now, attendee.event_id]
+            'UPDATE events SET checked_in_count = checked_in_count + 1, updated_at = ? WHERE id = ?;',
+            [now, existingAttendee.event_id]
           );
-          success = true;
+          successfulCheckIn = true;
+        } else {
+           console.warn(`Failed to update check-in status for attendee ${attendeeId}. No rows affected.`);
         }
       });
       
-      return success;
+      if (successfulCheckIn) {
+        // Return the updated attendee object
+        return {
+          ...existingAttendee,
+          checked_in: true,
+          check_in_time: now,
+          updated_at: now,
+        };
+      } else {
+        return null; // Check-in failed
+      }
     } catch (error) {
-      console.error('Error toggling check-in status for attendee:', error);
+      console.error(`Error checking in attendee ${attendeeId}:`, error);
       throw error;
     }
   }
@@ -564,11 +629,12 @@ export class DatabaseService {
   }
 
   // Async wrapper for checkInAttendee
-  async checkInAttendeeAsync(attendeeId: string): Promise<boolean> {
+  async checkInAttendeeAsync(attendeeId: string, eventIdFromQR: string): Promise<Attendee | null> {
     return new Promise((resolve, reject) => {
       setTimeout(() => {
         try {
-          const result = this.checkInAttendee(attendeeId);
+          // Ensure the synchronous version is called with both arguments
+          const result = this.checkInAttendee(attendeeId, eventIdFromQR);
           resolve(result);
         } catch (error) {
           reject(error);

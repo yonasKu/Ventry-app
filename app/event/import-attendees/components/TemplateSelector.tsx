@@ -17,7 +17,17 @@ const TemplateSelector = ({
   onDownloadTemplate
 }: TemplateSelectorProps) => {
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.backgroundPrimary }]}>
+    <View style={[
+      styles.container, 
+      { backgroundColor: theme.colors.backgroundPrimary },
+      {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 2,
+      }
+    ]}>
       <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
         Select Template
       </Text>
@@ -82,26 +92,32 @@ const getTemplateDescription = (template: keyof typeof CSV_TEMPLATES): string =>
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
+    borderColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: 'white',
   },
   title: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   scrollContent: {
     paddingVertical: 4,
   },
   templateButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginRight: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    marginRight: 10,
     borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
   },
   templateText: {
     fontSize: 14,
@@ -121,10 +137,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
     alignSelf: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
   },
   downloadText: {
     color: 'white',

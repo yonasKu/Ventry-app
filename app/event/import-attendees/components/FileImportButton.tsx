@@ -13,7 +13,14 @@ const FileImportButton = ({ theme, onImportFile, isLoading = false }: FileImport
     <TouchableOpacity
       style={[
         styles.button,
-        { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }
+        { borderColor: theme.colors.border },
+        {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.05,
+          shadowRadius: 2,
+          elevation: 1,
+        }
       ]}
       onPress={onImportFile}
       disabled={isLoading}
@@ -37,16 +44,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 12,
     borderWidth: 1,
     marginBottom: 16,
+    backgroundColor: 'white',
   },
   buttonText: {
-    fontWeight: '500',
-    fontSize: 14,
-    marginLeft: 8,
+    fontWeight: '600',
+    fontSize: 15,
+    marginLeft: 10,
   },
 });
 

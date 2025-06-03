@@ -439,6 +439,35 @@ export default function EventDetailScreen() {
                 styles.actionButtonCard,
                 { backgroundColor: theme.colors.backgroundPrimary },
               ]}
+              onPress={() => router.push(`/event/scan/${id}`)}
+            >
+              <View
+                style={[
+                  styles.actionIconContainer,
+                  { backgroundColor: `${theme.colors.primary}15` },
+                ]}
+              >
+                <QrCode
+                  size={24}
+                  color={theme.colors.primary}
+                  weight="fill"
+                />
+              </View>
+              <Text
+                style={[
+                  styles.actionButtonLabel,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                Scan QR
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.actionButtonCard,
+                { backgroundColor: theme.colors.backgroundPrimary },
+              ]}
               onPress={() => router.push(`/event/attendees/${id}`)}
             >
               <View
@@ -484,7 +513,7 @@ export default function EventDetailScreen() {
                   { color: theme.colors.textPrimary },
                 ]}
               >
-                QR Code
+                Event QR
               </Text>
             </TouchableOpacity>
 
@@ -514,6 +543,38 @@ export default function EventDetailScreen() {
                 ]}
               >
                 Edit
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.actionButtonCard,
+                { backgroundColor: theme.colors.backgroundPrimary },
+              ]}
+              onPress={() => {
+                // Navigate to attendee list where they can select an attendee to view their QR code
+                router.push(`/event/attendees/${id}?mode=qr`);
+              }}
+            >
+              <View
+                style={[
+                  styles.actionIconContainer,
+                  { backgroundColor: `${theme.colors.primary}15` },
+                ]}
+              >
+                <QrCode
+                  size={24}
+                  color={theme.colors.primary}
+                  weight="fill"
+                />
+              </View>
+              <Text
+                style={[
+                  styles.actionButtonLabel,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                Attendee QRs
               </Text>
             </TouchableOpacity>
           </View>
