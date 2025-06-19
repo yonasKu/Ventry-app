@@ -156,7 +156,7 @@ export default function CheckInScreen() {
 
   const handleScanQR = () => {
     // Navigate to QR scanner screen
-    router.push(`/event/scan-qr/${id}`);
+    router.push(`/event/scan/${id}`);
   };
 
   if (isLoading) {

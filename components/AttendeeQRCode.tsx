@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, Text } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { Attendee } from '../services/DatabaseService';
+import { generateAttendeeQRData } from '../services/QRValidationService';
 
 interface AttendeeQRCodeProps {
   attendee: Attendee;
@@ -13,7 +14,7 @@ interface AttendeeQRCodeProps {
 
 /**
  * Component to display a QR code for an attendee
- * The QR code contains a JSON object with the attendee's information
+ * The QR code contains a standardized JSON object with the attendee's information
  */
 const AttendeeQRCode: React.FC<AttendeeQRCodeProps> = ({
   attendee,
@@ -22,15 +23,8 @@ const AttendeeQRCode: React.FC<AttendeeQRCodeProps> = ({
   color = '#000000',
   backgroundColor = '#FFFFFF'
 }) => {
-  // Create a data object with attendee information
-  const qrData = JSON.stringify({
-    id: attendee.id,
-    eventId: eventId,
-    name: attendee.name,
-    email: attendee.email,
-    phone: attendee.phone,
-    timestamp: new Date().toISOString()
-  });
+  // Use the standardized QR data format from our validation service
+  const qrData = generateAttendeeQRData(attendee, eventId);
 
   return (
     <View style={styles.container}>

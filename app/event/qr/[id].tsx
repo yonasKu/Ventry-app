@@ -5,6 +5,7 @@ import { CaretLeft, ShareNetwork } from 'phosphor-react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { useTheme } from '@/context/ThemeContext';
 import { useEvents } from '@/context/EventContext';
+import { generateEventQRData } from '@/services/QRValidationService';
 
 export default function EventQRScreen() {
   const theme = useTheme();
@@ -51,15 +52,8 @@ export default function EventQRScreen() {
   const getQRValue = () => {
     if (!event) return '';
     
-    // Create a JSON object with event details
-    const qrData = {
-      type: 'ventry-event',
-      id: event.id,
-      title: event.title,
-      date: event.date,
-    };
-    
-    return JSON.stringify(qrData);
+    // Use the standardized QR data format from our validation service
+    return generateEventQRData(event);
   };
 
   if (isLoading) {

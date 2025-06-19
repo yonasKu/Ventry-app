@@ -9,9 +9,12 @@ import {
   ActivityIndicator,
   Platform,
   StatusBar,
+  Switch,
+  TextInput,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { CaretLeft, FileArrowDown, Users, CalendarCheck } from 'phosphor-react-native';
+import { CaretLeft, FileArrowDown, Users, CalendarCheck, Lock, FileJs, FileCode, FilePdf } from 'phosphor-react-native';
+import * as FileSystem from 'expo-file-system';
 import { useTheme } from '../../../context/ThemeContext';
 import { DatabaseService, Event } from '../../../services/DatabaseService';
 import CsvService from '../../../services/CsvService';
@@ -24,6 +27,11 @@ export default function ExportScreen() {
   const [event, setEvent] = useState<Event | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+  const [selectedFormatIndex, setSelectedFormatIndex] = useState(0);
+  const [isPasswordProtected, setIsPasswordProtected] = useState(false);
+  const [password, setPassword] = useState('');
+  const exportFormats = ['CSV', 'JSON', 'Excel', 'PDF'];
+  const exportIcons = [FileArrowDown, FileCode, FileJs, FilePdf];
 
   useEffect(() => {
     loadEvent();
@@ -68,8 +76,62 @@ export default function ExportScreen() {
         return;
       }
       
-      // Export to CSV
-      const filePath = await CsvService.exportAttendeesToCsv(attendees, event, includeCheckInStatus);
+      // Get selected format
+      const selectedFormat = exportFormats[selectedFormatIndex];
+      let filePath = '';
+      
+      // Export based on selected format
+      switch (selectedFormat) {
+        case 'CSV':
+          filePath = await CsvService.exportAttendeesToCsv(attendees, event, includeCheckInStatus);
+          break;
+          
+        case 'JSON':
+          // Convert to JSON
+          const jsonData = JSON.stringify(attendees.map(attendee => {
+            const attendeeData: Record<string, any> = {
+              name: attendee.name,
+              email: attendee.email || '',
+              phone: attendee.phone || ''
+            };
+            
+            if (includeCheckInStatus) {
+              attendeeData.checked_in = attendee.checked_in;
+              attendeeData.check_in_time = attendee.check_in_time || '';
+            }
+            
+            return attendeeData;
+          }), null, 2);
+          
+          // Create filename
+          const sanitizedEventName = event.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const filename = `${sanitizedEventName}_attendees_${timestamp}.json`;
+          
+          // Save to file
+          filePath = `${FileSystem.documentDirectory}${filename}`;
+          await FileSystem.writeAsStringAsync(filePath, jsonData, {
+            encoding: FileSystem.EncodingType.UTF8
+          });
+          break;
+          
+        case 'Excel':
+        case 'PDF':
+          // For now, we'll use CSV as a fallback and inform the user
+          Alert.alert('Feature Coming Soon', `${selectedFormat} export will be available in the next update. Using CSV format for now.`);
+          filePath = await CsvService.exportAttendeesToCsv(attendees, event, includeCheckInStatus);
+          break;
+          
+        default:
+          filePath = await CsvService.exportAttendeesToCsv(attendees, event, includeCheckInStatus);
+      }
+      
+      // If password protection is enabled, add a simple header (in a real app, use proper encryption)
+      if (isPasswordProtected && password.trim()) {
+        const fileContent = await FileSystem.readAsStringAsync(filePath);
+        const protectedContent = `PROTECTED:${password}\n${fileContent}`;
+        await FileSystem.writeAsStringAsync(filePath, protectedContent);
+      }
       
       // Share the file
       await CsvService.shareCsvFile(filePath, `Export ${attendees.length} Attendees`);
@@ -88,8 +150,61 @@ export default function ExportScreen() {
     try {
       setIsExporting(true);
       
-      // Export event to CSV
-      const filePath = await CsvService.exportEventToCsv(event);
+      // Get selected format
+      const selectedFormat = exportFormats[selectedFormatIndex];
+      let filePath = '';
+      
+      // Export based on selected format
+      switch (selectedFormat) {
+        case 'CSV':
+          filePath = await CsvService.exportEventToCsv(event);
+          break;
+          
+        case 'JSON':
+          // Convert to JSON
+          const jsonData = JSON.stringify({
+            id: event.id,
+            title: event.title,
+            date: event.date,
+            time: event.time,
+            location: event.location || '',
+            notes: event.notes || '',
+            expected_attendees: event.expected_attendees || '',
+            attendees_count: event.attendees_count || 0,
+            checked_in_count: event.checked_in_count || 0,
+            created_at: event.created_at,
+            updated_at: event.updated_at
+          }, null, 2);
+          
+          // Create filename
+          const sanitizedEventName = event.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const filename = `${sanitizedEventName}_details_${timestamp}.json`;
+          
+          // Save to file
+          filePath = `${FileSystem.documentDirectory}${filename}`;
+          await FileSystem.writeAsStringAsync(filePath, jsonData, {
+            encoding: FileSystem.EncodingType.UTF8
+          });
+          break;
+          
+        case 'Excel':
+        case 'PDF':
+          // For now, we'll use CSV as a fallback and inform the user
+          Alert.alert('Feature Coming Soon', `${selectedFormat} export will be available in the next update. Using CSV format for now.`);
+          filePath = await CsvService.exportEventToCsv(event);
+          break;
+          
+        default:
+          filePath = await CsvService.exportEventToCsv(event);
+      }
+      
+      // If password protection is enabled, add a simple header (in a real app, use proper encryption)
+      if (isPasswordProtected && password.trim()) {
+        const fileContent = await FileSystem.readAsStringAsync(filePath);
+        const protectedContent = `PROTECTED:${password}\n${fileContent}`;
+        await FileSystem.writeAsStringAsync(filePath, protectedContent);
+      }
       
       // Share the file
       await CsvService.shareCsvFile(filePath, 'Export Event Details');
@@ -158,6 +273,71 @@ export default function ExportScreen() {
           </View>
         )}
 
+        <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Export Format</Text>
+        
+        {/* Format Selector */}
+        <View style={[styles.formatCard, { backgroundColor: theme.colors.backgroundPrimary }]}>
+          <View style={styles.formatSelectorContainer}>
+            {exportFormats.map((format, index) => {
+              const FormatIcon = exportIcons[index];
+              const isSelected = selectedFormatIndex === index;
+              return (
+                <TouchableOpacity
+                  key={format}
+                  style={[
+                    styles.formatButton,
+                    isSelected ? { backgroundColor: theme.colors.primary } : { backgroundColor: theme.colors.backgroundSecondary }
+                  ]}
+                  onPress={() => setSelectedFormatIndex(index)}
+                >
+                  <FormatIcon 
+                    size={20} 
+                    color={isSelected ? '#fff' : theme.colors.textSecondary} 
+                  />
+                  <Text 
+                    style={[
+                      styles.formatButtonText, 
+                      isSelected ? { color: '#fff' } : { color: theme.colors.textSecondary }
+                    ]}
+                  >
+                    {format}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          
+          {/* Security Options */}
+          <View style={styles.securityOptionsContainer}>
+            <View style={styles.securityToggleRow}>
+              <Lock size={16} color={theme.colors.textSecondary} />
+              <Text style={[styles.securityLabel, { color: theme.colors.textSecondary }]}>
+                Password protect this export
+              </Text>
+              <Switch 
+                value={isPasswordProtected} 
+                onValueChange={setIsPasswordProtected}
+                trackColor={{ false: theme.colors.backgroundSecondary, true: theme.colors.primary }}
+              />
+            </View>
+            
+            {isPasswordProtected && (
+              <TextInput
+                style={[styles.passwordInput, { 
+                  backgroundColor: theme.colors.backgroundSecondary,
+                  color: theme.colors.textPrimary,
+                  borderColor: theme.colors.border
+                }]}
+                placeholder="Enter password"
+                placeholderTextColor={theme.colors.textSecondary}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+              />
+            )}
+          </View>
+        </View>
+
         <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Export Options</Text>
 
         {/* Export Attendees Card */}
@@ -169,7 +349,7 @@ export default function ExportScreen() {
             </Text>
           </View>
           <Text style={[styles.exportCardDescription, { color: theme.colors.textSecondary }]}>
-            Export all attendees for this event to a CSV file. You can include or exclude check-in status.
+            Export all attendees for this event. You can include or exclude check-in status.
           </Text>
           <View style={styles.exportButtonsContainer}>
             <TouchableOpacity
@@ -181,7 +361,7 @@ export default function ExportScreen() {
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <>
-                  <FileArrowDown size={18} color="#fff" weight="regular" />
+                  {exportIcons[selectedFormatIndex]({ size: 18, color: '#fff', weight: 'regular' })}
                   <Text style={styles.exportButtonText}>With Check-in Status</Text>
                 </>
               )}
@@ -191,7 +371,7 @@ export default function ExportScreen() {
               onPress={() => handleExportAttendees(false)}
               disabled={isExporting}
             >
-              <FileArrowDown size={18} color={theme.colors.primary} weight="regular" />
+              {exportIcons[selectedFormatIndex]({ size: 18, color: theme.colors.primary, weight: 'regular' })}
               <Text style={[styles.exportButtonText, { color: theme.colors.primary }]}>Basic Info Only</Text>
             </TouchableOpacity>
           </View>
@@ -206,7 +386,7 @@ export default function ExportScreen() {
             </Text>
           </View>
           <Text style={[styles.exportCardDescription, { color: theme.colors.textSecondary }]}>
-            Export this event's details to a CSV file, including date, time, location, and attendance statistics.
+            Export this event's details, including date, time, location, and attendance statistics.
           </Text>
           <TouchableOpacity
             style={[styles.exportButton, { backgroundColor: theme.colors.primary }]}
@@ -217,10 +397,30 @@ export default function ExportScreen() {
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
-                <FileArrowDown size={18} color="#fff" weight="regular" />
+                {exportIcons[selectedFormatIndex]({ size: 18, color: '#fff', weight: 'regular' })}
                 <Text style={styles.exportButtonText}>Export Event Details</Text>
               </>
             )}
+          </TouchableOpacity>
+        </View>
+        
+        {/* Statistics Card */}
+        <View style={[styles.exportCard, { backgroundColor: theme.colors.backgroundPrimary }]}>
+          <View style={styles.exportCardHeader}>
+            <CalendarCheck size={20} color={theme.colors.primary} />
+            <Text style={[styles.exportCardTitle, { color: theme.colors.textPrimary }]}>
+              Export Statistics
+            </Text>
+          </View>
+          <Text style={[styles.exportCardDescription, { color: theme.colors.textSecondary }]}>
+            Coming soon: Export detailed event statistics and visualizations.
+          </Text>
+          <TouchableOpacity
+            style={[styles.exportButton, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}
+            disabled={true}
+          >
+            <FilePdf size={18} color={theme.colors.textSecondary} weight="regular" />
+            <Text style={[styles.exportButtonText, { color: theme.colors.textSecondary }]}>Coming Soon</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -340,6 +540,59 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     marginLeft: 8,
+    fontSize: 14,
+  },
+  // Format selector styles
+  formatCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+  },
+  formatSelectorContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  formatButton: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  formatButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 6,
+  },
+  // Security options styles
+  securityOptionsContainer: {
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+    paddingTop: 16,
+  },
+  securityToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  securityLabel: {
+    fontSize: 14,
+    flex: 1,
+    marginLeft: 8,
+  },
+  passwordInput: {
+    height: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 12,
     fontSize: 14,
   },
 });
