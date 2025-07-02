@@ -21,7 +21,11 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.anonymous.ventryapp"
+      "package": "com.anonymous.ventryapp",
+      "enableDangerousExperimentalLeanBuilds": false,
+      "ndk": {
+        "abiFilters": ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"]
+      }
     },
     "web": {
       "bundler": "metro",

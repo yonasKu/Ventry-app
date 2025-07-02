@@ -378,6 +378,16 @@ export default function ManageAttendeesScreen() {
           </View>
           <Text style={[styles.actionButtonText, { color: theme.colors.textPrimary }]}>Import</Text>
         </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.actionButton, { backgroundColor: theme.colors.backgroundPrimary }]}
+          onPress={handleExportData}
+        >
+          <View style={[styles.actionIconContainer, { backgroundColor: theme.colors.primary }]}>
+            <FileArrowDown size={18} color="white" weight="fill" />
+          </View>
+          <Text style={[styles.actionButtonText, { color: theme.colors.textPrimary }]}>Export</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Attendee List */}

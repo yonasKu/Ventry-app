@@ -10,7 +10,7 @@ export default function TabLayout() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.backgroundPrimary }}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary }]}>
+      {/* <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary }]}>
         <Text 
           style={[styles.headerTitle, { 
             color: theme.colors.textPrimary,
@@ -21,7 +21,7 @@ export default function TabLayout() {
           Ventry
         </Text>
         <Text style={styles.offlineIndicator}>[OFFLINE]</Text>
-      </View>
+      </View> */}
       
       {/* Main content with bottom padding for navigation */}
       <View style={styles.contentContainer}>

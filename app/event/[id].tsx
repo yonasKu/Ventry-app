@@ -24,6 +24,7 @@ import {
   MapPin,
   Users,
   NotePencil,
+  FileArrowDown,
 } from "phosphor-react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { useEvents } from "../../context/EventContext";
@@ -410,7 +411,14 @@ export default function EventDetailScreen() {
                 styles.actionButtonCard,
                 { backgroundColor: theme.colors.backgroundPrimary },
               ]}
-              onPress={() => router.push(`/event/check-in/${id}`)}
+              onPress={() => {
+                console.log("Navigating to check-in page with ID:", id);
+                // Use navigate instead of push for more reliable navigation
+                router.navigate({
+                  pathname: "/event/check-in/[id]",
+                  params: { id }
+                });
+              }}
             >
               <View
                 style={[
@@ -543,6 +551,35 @@ export default function EventDetailScreen() {
                 ]}
               >
                 Edit
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.actionButtonCard,
+                { backgroundColor: theme.colors.backgroundPrimary },
+              ]}
+              onPress={() => router.push(`/event/export/${id}`)}
+            >
+              <View
+                style={[
+                  styles.actionIconContainer,
+                  { backgroundColor: `${theme.colors.primary}15` },
+                ]}
+              >
+                <FileArrowDown
+                  size={24}
+                  color={theme.colors.primary}
+                  weight="fill"
+                />
+              </View>
+              <Text
+                style={[
+                  styles.actionButtonLabel,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                Export
               </Text>
             </TouchableOpacity>
             

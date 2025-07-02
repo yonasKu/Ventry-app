@@ -12,7 +12,7 @@ import {
   House,
   CalendarBlank,
   CloudArrowDown,
-  User,
+  ChartPie,
 } from 'phosphor-react-native';
 import Animated, {
   useSharedValue,
@@ -49,14 +49,9 @@ export default function CustomBottomNavigation() {
 
   const tabs: TabItem[] = [
     {
-      label: 'Home',
-      icon: (color, size) => <House size={size} color={color} weight={pathname === '/' ? 'fill' : 'regular'} />,
-      path: '/',
-    },
-    {
       label: 'Events',
-      icon: (color, size) => <CalendarBlank size={size} color={color} weight={pathname.startsWith('/events') ? 'fill' : 'regular'} />,
-      path: '/events',
+      icon: (color, size) => <CalendarBlank size={size} color={color} weight={pathname === '/' ? 'fill' : 'regular'} />,
+      path: '/',
     },
     {
       label: 'Backup',
@@ -64,9 +59,9 @@ export default function CustomBottomNavigation() {
       path: '/backup',
     },
     {
-      label: 'Account',
-      icon: (color, size) => <User size={size} color={color} weight={pathname.startsWith('/account') ? 'fill' : 'regular'} />,
-      path: '/account',
+      label: 'Stats',
+      icon: (color, size) => <ChartPie size={size} color={color} weight={pathname.startsWith('/stats') ? 'fill' : 'regular'} />,
+      path: '/stats',
     },
   ];
 
