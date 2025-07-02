@@ -11,11 +11,25 @@ import {
 } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useEvents } from '@/context/EventContext';
-import { format, parseISO, isThisWeek, isThisMonth, differenceInDays, formatDistance } from 'date-fns';
+import { format, parseISO, isThisWeek, isThisMonth, differenceInDays, formatDistance, isFuture } from 'date-fns';
 import { VictoryPie, VictoryBar, VictoryChart, VictoryAxis, VictoryTheme, VictoryLabel } from 'victory-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowUp, ArrowDown, Calendar, Users, CheckCircle, Clock, ChartBar, TrendUp, Trophy } from 'phosphor-react-native';
 import Animated, { FadeInDown, FadeInRight, Layout } from 'react-native-reanimated';
+import StatsHeader from '@/components/statistics/StatsHeader';
+import TimeFilterComponent from '@/components/statistics/TimeFilter';
+import EventDistributionChart from '@/components/statistics/EventDistributionChart';
+import CheckInChart from '@/components/statistics/CheckInChart';
+import EventsBarChart from '@/components/statistics/EventsBarChart';
+import OverviewSection from '@/components/statistics/OverviewSection';
+import EventInsights from '@/components/statistics/EventInsights';
+import AttendanceTrendChart from '@/components/statistics/AttendanceTrendChart';
+import AttendeeTypeChart from '@/components/statistics/AttendeeTypeChart';
+import SectionHeader from '@/components/statistics/SectionHeader';
+import CheckinActivityHeatMap from '@/components/statistics/CheckinActivityHeatMap';
+import CheckinSpeedGauge from '@/components/statistics/CheckinSpeedGauge';
+import EventCompletionBars from '@/components/statistics/EventCompletionBars';
+import CheckinRateTrendChart from '@/components/statistics/CheckinRateTrendChart';
 
 const { width } = Dimensions.get('window');
 
@@ -132,6 +146,7 @@ export default function StatsScreen() {
     
     // Additional stats
     const avgAttendeesPerEvent = totalEvents > 0 ? Math.round(totalAttendees / totalEvents) : 0;
+    const activeEvents = events.filter(e => isFuture(parseISO(e.date))).length;
     
     // Find most recent event
     const recentEvents = [...filteredEvents].sort((a, b) => 
@@ -152,18 +167,36 @@ export default function StatsScreen() {
       eventsGrowthPositive,
       avgAttendeesPerEvent,
       mostRecentEvent,
-      mostPopularEvent
+      mostPopularEvent,
+      activeEvents,
     };
   }, [filteredEvents, events, timeFilter]);
 
   // Format event data for charts
   const chartData = useMemo(() => {
-    // Sort by date and take most recent 6 events
-    const recentEvents = [...filteredEvents]
-      .sort((a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime())
-      .slice(0, 6)
-      .reverse();
-    
+    const sortedEvents = [...filteredEvents].sort(
+      (a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()
+    );
+
+    // Data for AttendanceTrendChart
+    let trendData = sortedEvents.map(event => ({
+      x: parseISO(event.date),
+      y: event.attendees_count || 0,
+    }));
+
+    // If there isn't enough data for a trend line, use sample data.
+    if (trendData.length < 2) {
+      trendData = [
+        { x: new Date('2023-01-15'), y: 120 },
+        { x: new Date('2023-02-20'), y: 150 },
+        { x: new Date('2023-03-10'), y: 130 },
+        { x: new Date('2023-04-25'), y: 180 },
+        { x: new Date('2023-05-30'), y: 210 },
+      ];
+    }
+
+    // Data for EventsBarChart
+    const recentEvents = sortedEvents.slice(-6);
     const barData = recentEvents.map(event => ({
       x: event.title.length > 10 ? `${event.title.substring(0, 10)}...` : event.title,
       y: event.attendees_count || 0,
@@ -171,12 +204,97 @@ export default function StatsScreen() {
       checkInRate: event.attendees_count ? ((event.checked_in_count || 0) / event.attendees_count * 100).toFixed(0) : '0'
     }));
 
-    const pieData = [
-      { x: "Checked In", y: stats.totalCheckedIn, color: theme.colors.primary },
-      { x: "Not Checked In", y: stats.totalAttendees - stats.totalCheckedIn, color: theme.colors.border || '#e0e0e0' }
+    // Data for CheckInChart, with fallback to sample data
+    let pieData;
+    let pieStats;
+    if (stats.totalAttendees > 0) {
+      pieData = [
+        { x: "Checked In", y: stats.totalCheckedIn, color: theme.colors.primary },
+        { x: "Not Checked In", y: stats.totalAttendees - stats.totalCheckedIn, color: theme.colors.border || '#e0e0e0' }
+      ];
+      pieStats = {
+        totalAttendees: stats.totalAttendees,
+        checkInRate: stats.checkInRate,
+      };
+    } else {
+      // Use sample data if no real data is available
+      pieData = [
+        { x: "Checked In", y: 85, color: theme.colors.primary },
+        { x: "Not Checked In", y: 15, color: theme.colors.border || '#e0e0e0' }
+      ];
+      pieStats = {
+        totalAttendees: 100,
+        checkInRate: '85.0',
+      };
+    }
+    
+    // Data for EventDistributionChart
+    const distributionData = [
+      { x: 'Meetups', y: 42 },
+      { x: 'Workshops', y: 28 },
+      { x: 'Conferences', y: 19 },
+      { x: 'Webinars', y: 15 },
+      { x: 'Team Building', y: 12 },
+      { x: 'Product Launches', y: 9 },
+      { x: 'Networking', y: 7 },
+      { x: 'Seminars', y: 5 },
+      { x: 'Trade Shows', y: 3 },
     ];
     
-    return { barData, pieData };
+    // Placeholder data for AttendeeTypeChart
+    const attendeeTypeData = [
+      { event: 'Community Meetup', new: 35, returning: 65 },
+      { event: 'Tech Conference', new: 120, returning: 280 },
+      { event: 'Design Workshop', new: 15, returning: 25 },
+      { event: 'Product Launch', new: 80, returning: 120 },
+      { event: 'Charity Gala', new: 50, returning: 150 },
+      { event: 'Music Festival', new: 250, returning: 450 },
+    ];
+    
+    // Placeholder data for CheckinSpeedGauge
+    let checkinSpeed = stats.totalCheckedIn > 0 ? 25 + Math.floor(stats.totalCheckedIn % 10) : 0;
+    if (checkinSpeed === 0) {
+      checkinSpeed = 34; // Fallback to a default sample value if no real data is available
+    }
+
+    // Placeholder data for CheckinActivityHeatMap
+    const heatMapData = Array.from({ length: 7 }, () => 
+      Array.from({ length: 24 }, () => Math.floor(Math.random() * 25))
+    );
+    // Simulate a peak event time
+    for (let i = 18; i < 21; i++) { // 6pm to 9pm
+      heatMapData[5][i] = 50 + Math.floor(Math.random() * 50); // Friday
+      heatMapData[6][i] = 40 + Math.floor(Math.random() * 40); // Saturday
+    }
+
+    // Placeholder data for EventCompletionBars
+    const eventCompletionData = filteredEvents.slice(0, 4).map(event => ({
+      name: event.title,
+      checkedIn: event.checked_in_count || 0,
+      total: event.attendees_count || 0,
+    }));
+    
+    // Use sample data if none is available from the filter
+    if (eventCompletionData.length === 0) {
+      eventCompletionData.push(
+        { name: 'Annual Tech Summit', checkedIn: 380, total: 450 },
+        { name: 'Marketing Workshop', checkedIn: 45, total: 50 },
+        { name: 'Community Meetup', checkedIn: 88, total: 120 }
+      );
+    }
+
+    // Placeholder data for CheckinRateTrendChart
+    const checkinRateTrendData = [
+      { x: 0, y: 0 },
+      { x: 10, y: 15 },
+      { x: 20, y: 35 },
+      { x: 30, y: 60 },
+      { x: 45, y: 80 },
+      { x: 60, y: 90 },
+      { x: 90, y: 98 },
+    ];
+
+    return { barData, pieData, pieStats, distributionData, trendData, attendeeTypeData, heatMapData, checkinSpeed, eventCompletionData, checkinRateTrendData };
   }, [filteredEvents, stats, theme]);
 
   // Victory theme customization
@@ -198,545 +316,6 @@ export default function StatsScreen() {
     }
   };
 
-  const renderDistributionChart = () => {
-    // Expanded sample data for a more professional look
-    const distributionData = [
-      { x: 'Meetups', y: 42 },
-      { x: 'Workshops', y: 28 },
-      { x: 'Conferences', y: 19 },
-      { x: 'Webinars', y: 15 },
-      { x: 'Team Building', y: 12 },
-      { x: 'Product Launches', y: 9 },
-      { x: 'Networking', y: 7 },
-      { x: 'Seminars', y: 5 },
-      { x: 'Trade Shows', y: 3 },
-    ];
-    
-    // Calculate total for percentage calculation
-    const totalEvents = distributionData.reduce((acc, d) => acc + d.y, 0);
-
-    // Your preferred vibrant color palette for the top categories
-    const accentColors = [
-      theme.colors.accent, // Orange for the largest slice
-      '#8B5CF6',           // Purple for the second largest
-      '#3B82F6',           // Blue for the third
-      '#10B981',           // Green for the fourth
-      '#EF4444',           // Red for the fifth
-    ];
-
-    // Sort data to assign colors based on rank
-    const sortedData = [...distributionData].sort((a, b) => b.y - a.y);
-    
-    // Dynamically assign colors: use accents first, then generate new ones
-    const [baseH, baseS, baseL] = hexToHsl(theme.colors.primary);
-    const colorMap = sortedData.reduce((map, item, index) => {
-      if (index < accentColors.length) {
-        // Use the preferred accent colors for the top items
-        map[item.x] = accentColors[index];
-      } else {
-        // For additional items, generate a new, distinct color
-        const hue = (baseH + (index - accentColors.length) * 137.5) % 360;
-        const saturation = baseS - (index % 3) * 5;
-        const lightness = baseL + (index % 4) * 5;
-        map[item.x] = hslToHex(hue, Math.max(40, saturation), Math.min(70, lightness));
-      }
-      return map;
-    }, {} as Record<string, string>);
-
-    // Create the color scale in the original data order for VictoryPie
-    const colorScale = distributionData.map(item => colorMap[item.x]);
-
-    return (
-      <Animated.View 
-        style={{
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: theme.spacing.lg,
-        }}
-        entering={FadeInDown.delay(100).springify()}
-        layout={Layout.springify()}
-      >
-        <VictoryPie
-          data={distributionData}
-          width={width - theme.spacing.md}
-          height={320}
-          padding={40}
-          innerRadius={80}
-          cornerRadius={15}
-          padAngle={1.5}
-          colorScale={colorScale}
-          labels={({ datum }) => `${Math.round((datum.y / totalEvents) * 100)}%`}
-          labelComponent={
-            <VictoryLabel
-              backgroundStyle={{ 
-                fill: theme.colors.backgroundPrimary, 
-                opacity: 0.7, 
-                rx: 8,
-              } as any}
-              backgroundPadding={{ top: 4, bottom: 4, left: 8, right: 8 }}
-              style={{ fill: theme.colors.textPrimary, fontSize: 12, fontWeight: 'bold' }}
-            />
-          }
-          labelRadius={120}
-          style={{ data: { stroke: theme.colors.backgroundPrimary, strokeWidth: 2 } }}
-          animate={{
-            duration: 500,
-            onLoad: { duration: 500 }
-          }}
-        />
-        <View style={styles.donutCenter}>
-          <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>Total Events</Text>
-          <Text style={[theme.typography.display, { color: theme.colors.textPrimary, marginTop: theme.spacing.xs }]}>
-            {totalEvents}
-          </Text>
-        </View>
-      </Animated.View>
-    );
-  };
-
-  const renderTimeFilter = () => (
-    <Animated.View 
-      style={styles.filterContainer}
-      entering={FadeInDown.delay(100).springify()}
-    >
-      <TouchableOpacity 
-        style={[
-          styles.filterButton, 
-          timeFilter === 'week' && [
-            styles.activeFilter, 
-            { borderColor: theme.colors.primary, backgroundColor: `${theme.colors.primary}15` }
-          ]
-        ]} 
-        onPress={() => setTimeFilter('week')}
-      >
-        <Text 
-          style={[
-            styles.filterText, 
-            timeFilter === 'week' && { color: theme.colors.primary, fontWeight: '600' }
-          ]}
-        >
-          Week
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity 
-        style={[
-          styles.filterButton, 
-          timeFilter === 'month' && [
-            styles.activeFilter, 
-            { borderColor: theme.colors.primary, backgroundColor: `${theme.colors.primary}15` }
-          ]
-        ]} 
-        onPress={() => setTimeFilter('month')}
-      >
-        <Text 
-          style={[
-            styles.filterText, 
-            timeFilter === 'month' && { color: theme.colors.primary, fontWeight: '600' }
-          ]}
-        >
-          Month
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity 
-        style={[
-          styles.filterButton, 
-          timeFilter === 'year' && [
-            styles.activeFilter, 
-            { borderColor: theme.colors.primary, backgroundColor: `${theme.colors.primary}15` }
-          ]
-        ]} 
-        onPress={() => setTimeFilter('year')}
-      >
-        <Text 
-          style={[
-            styles.filterText, 
-            timeFilter === 'year' && { color: theme.colors.primary, fontWeight: '600' }
-          ]}
-        >
-          Year
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity 
-        style={[
-          styles.filterButton, 
-          timeFilter === 'all' && [
-            styles.activeFilter, 
-            { borderColor: theme.colors.primary, backgroundColor: `${theme.colors.primary}15` }
-          ]
-        ]} 
-        onPress={() => setTimeFilter('all')}
-      >
-        <Text 
-          style={[
-            styles.filterText, 
-            timeFilter === 'all' && { color: theme.colors.primary, fontWeight: '600' }
-          ]}
-        >
-          All Time
-        </Text>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-
-  const renderHeader = () => (
-    <View style={styles.headerContainer}>
-      <Text style={[theme.typography.display, { color: theme.colors.textPrimary }]}>
-        Statistics
-      </Text>
-      <Text style={[theme.typography.body, { color: theme.colors.textSecondary, marginTop: theme.spacing.xs }]}>
-        Event data and insights
-      </Text>
-    </View>
-  );
-
-  const renderOverviewSection = () => (
-    <Animated.View 
-      style={[
-        styles.summaryCard, 
-        { 
-          backgroundColor: theme.colors.backgroundPrimary,
-          borderRadius: theme.borderRadius.lg,
-          ...theme.shadows.md
-        }
-      ]}
-      entering={FadeInDown.delay(150).springify()}
-      layout={Layout.springify()}
-    >
-      <Text style={[theme.typography.heading2, { color: theme.colors.textPrimary, marginBottom: theme.spacing.md }]}>
-        Overview
-      </Text>
-      <View style={styles.summaryRow}>
-        <View style={styles.summaryItem}>
-          <View style={[styles.summaryIconContainer, { backgroundColor: `${theme.colors.primary}15` }]}>
-            <Calendar size={24} color={theme.colors.primary} weight="bold" />
-          </View>
-          <Text style={[theme.typography.heading1, { color: theme.colors.primary }]}>
-            {stats.totalEvents}
-          </Text>
-          <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-            Events
-          </Text>
-          {Number(stats.eventsGrowth) !== 0 && (
-            <View 
-              style={[
-                styles.growthBadge, 
-                { 
-                  backgroundColor: stats.eventsGrowthPositive 
-                    ? `${theme.colors.success}15` 
-                    : `${theme.colors.error}15` 
-                }
-              ]}
-            >
-              {stats.eventsGrowthPositive 
-                ? <ArrowUp size={12} color={theme.colors.success} /> 
-                : <ArrowDown size={12} color={theme.colors.error} />
-              }
-              <Text 
-                style={[
-                  styles.growthText, 
-                  { 
-                    color: stats.eventsGrowthPositive 
-                      ? theme.colors.success 
-                      : theme.colors.error
-                  }
-                ]}
-              >
-                {stats.eventsGrowth}%
-              </Text>
-            </View>
-          )}
-        </View>
-        
-        <View style={styles.summaryItem}>
-          <View style={[styles.summaryIconContainer, { backgroundColor: `${theme.colors.primary}15` }]}>
-            <Users size={24} color={theme.colors.primary} weight="bold" />
-          </View>
-          <Text style={[theme.typography.heading1, { color: theme.colors.primary }]}>
-            {stats.totalAttendees}
-          </Text>
-          <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-            Attendees
-          </Text>
-        </View>
-        
-        <View style={styles.summaryItem}>
-          <View style={[styles.summaryIconContainer, { backgroundColor: `${theme.colors.primary}15` }]}>
-            <CheckCircle size={24} color={theme.colors.primary} weight="bold" />
-          </View>
-          <Text style={[theme.typography.heading1, { color: theme.colors.primary }]}>
-            {stats.checkInRate}%
-          </Text>
-          <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-            Check-in Rate
-          </Text>
-        </View>
-      </View>
-    </Animated.View>
-  );
-
-  const renderEventInsights = () => (
-    <Animated.View 
-      style={[
-        styles.insightsCard, 
-        { 
-          backgroundColor: theme.colors.backgroundPrimary,
-          borderRadius: theme.borderRadius.lg,
-          ...theme.shadows.md 
-        }
-      ]}
-      entering={FadeInDown.delay(200).springify()}
-      layout={Layout.springify()}
-    >
-      <Text style={[theme.typography.heading2, { color: theme.colors.textPrimary }]}>
-        Event Insights
-      </Text>
-      <View style={styles.insightRow}>
-        <View style={[styles.insightIconContainer, { backgroundColor: `${theme.colors.accent}15` }]}>
-          <TrendUp size={20} color={theme.colors.accent} weight="bold" />
-        </View>
-        <View style={styles.insightTextContainer}>
-          <Text style={[theme.typography.body, { color: theme.colors.textPrimary, fontWeight: '600' }]}>
-            Average Attendance
-          </Text>
-          <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-            {stats.avgAttendeesPerEvent} attendees per event
-          </Text>
-        </View>
-      </View>
-      {stats.mostPopularEvent && (
-        <View style={[styles.insightRow, { marginTop: theme.spacing.md }]}>
-          <View style={[styles.insightIconContainer, { backgroundColor: `${theme.colors.accent}15` }]}>
-            <Trophy size={20} color={theme.colors.accent} weight="bold" />
-          </View>
-          <View style={styles.insightTextContainer}>
-            <Text style={[theme.typography.body, { color: theme.colors.textPrimary, fontWeight: '600' }]}>
-              Most Popular Event
-            </Text>
-            <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-              {stats.mostPopularEvent.title} ({stats.mostPopularEvent.attendees_count || 0} attendees)
-            </Text>
-          </View>
-        </View>
-      )}
-      {stats.mostRecentEvent && (
-        <View style={[styles.insightRow, { marginTop: theme.spacing.md }]}>
-          <View style={[styles.insightIconContainer, { backgroundColor: `${theme.colors.accent}15` }]}>
-            <Clock size={20} color={theme.colors.accent} weight="bold" />
-          </View>
-          <View style={styles.insightTextContainer}>
-            <Text style={[theme.typography.body, { color: theme.colors.textPrimary, fontWeight: '600' }]}>
-              Most Recent Event
-            </Text>
-            <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-              {stats.mostRecentEvent.title} ({format(parseISO(stats.mostRecentEvent.date), 'MMM d, yyyy')})
-            </Text>
-          </View>
-        </View>
-      )}
-    </Animated.View>
-  );
-  
-  // Recent Events Chart Component
-  const renderEventsChart = () => (
-    chartData.barData.length > 0 ? (
-      <Animated.View 
-        style={[
-          styles.chartCard, 
-          { 
-            backgroundColor: theme.colors.backgroundPrimary,
-            borderRadius: theme.borderRadius.lg,
-            ...theme.shadows.md 
-          }
-        ]}
-        entering={FadeInDown.delay(250).springify()}
-        layout={Layout.springify()}
-      >
-        <Text style={[theme.typography.heading2, { color: theme.colors.textPrimary }]}>
-          Recent Events
-        </Text>
-        <View style={styles.chartContainer}>
-          <VictoryChart
-            domainPadding={{ x: 20 }}
-            width={width - 64}
-            height={250}
-            theme={customTheme}
-            padding={{ top: 20, bottom: 50, left: 50, right: 50 }}
-          >
-            <VictoryAxis
-              tickFormat={(t) => t}
-              style={{
-                tickLabels: {
-                  angle: -30,
-                  textAnchor: 'end',
-                  fontSize: 8,
-                  fill: theme.colors.textSecondary
-                }
-              }}
-            />
-            <VictoryAxis
-              dependentAxis
-              tickFormat={(t) => `${t}`}
-              style={{
-                tickLabels: {
-                  fontSize: 10,
-                  fill: theme.colors.textSecondary
-                }
-              }}
-            />
-            <VictoryBar
-              data={chartData.barData}
-              x="x"
-              y="y"
-              style={{
-                data: {
-                  fill: ({ datum }) => {
-                    const hex = theme.colors.primary.replace('#', '');
-                    const r = parseInt(hex.substring(0, 2), 16);
-                    const g = parseInt(hex.substring(2, 4), 16);
-                    const b = parseInt(hex.substring(4, 6), 16);
-                    return `rgba(${r}, ${g}, ${b}, 0.2)`;
-                  },
-                  stroke: theme.colors.primary,
-                  strokeWidth: 1
-                }
-              }}
-              barRatio={0.8}
-              labels={({ datum }) => `${datum.y}`}
-              labelComponent={<VictoryLabel dy={-10} style={{ fill: theme.colors.textSecondary, fontSize: 10 }} />}
-            />
-            <VictoryBar
-              data={chartData.barData}
-              x="x"
-              y="checkedIn"
-              style={{
-                data: {
-                  fill: theme.colors.primary
-                }
-              }}
-              barRatio={0.8}
-              labels={({ datum }) => `${datum.checkedIn}`}
-              labelComponent={<VictoryLabel dy={-10} style={{ fill: theme.colors.textSecondary, fontSize: 10 }} />}
-            />
-          </VictoryChart>
-          <View style={styles.legendContainer}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { backgroundColor: theme.colors.primary }]} />
-              <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Checked In</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { backgroundColor: (() => {
-                const hex = theme.colors.primary.replace('#', '');
-                const r = parseInt(hex.substring(0, 2), 16);
-                const g = parseInt(hex.substring(2, 4), 16);
-                const b = parseInt(hex.substring(4, 6), 16);
-                return `rgba(${r}, ${g}, ${b}, 0.2)`;
-              })() }]} />
-              <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Total Attendees</Text>
-            </View>
-          </View>
-        </View>
-      </Animated.View>
-    ) : (
-      <Animated.View 
-        style={[
-          styles.chartCard, 
-          { 
-            backgroundColor: theme.colors.backgroundPrimary,
-            borderRadius: theme.borderRadius.lg,
-            ...theme.shadows.md 
-          }
-        ]}
-        entering={FadeInDown.delay(250).springify()}
-        layout={Layout.springify()}
-      >
-        <Text style={[theme.typography.heading2, { color: theme.colors.textPrimary }]}>
-          Recent Events
-        </Text>
-        <View style={styles.emptyChartContainer}>
-          <Calendar size={48} color={theme.colors.textTertiary} weight="light" />
-          <Text style={[theme.typography.body, { color: theme.colors.textSecondary, marginTop: theme.spacing.md }]}>
-            No events in this period
-          </Text>
-        </View>
-      </Animated.View>
-    )
-  );
-
-  // Check-in Distribution Chart Component  
-  const renderCheckInChart = () => (
-    stats.totalAttendees > 0 ? (
-      <Animated.View 
-        style={[
-          styles.chartCard, 
-          { 
-            backgroundColor: theme.colors.backgroundPrimary,
-            borderRadius: theme.borderRadius.lg,
-            ...theme.shadows.md 
-          }
-        ]}
-        entering={FadeInDown.delay(300).springify()}
-        layout={Layout.springify()}
-      >
-        <Text style={[theme.typography.heading2, { color: theme.colors.textPrimary }]}>
-          Check-in Distribution
-        </Text>
-        <View style={styles.pieContainer}>
-          <VictoryPie
-            data={chartData.pieData}
-            colorScale={chartData.pieData.map(d => d.color)}
-            width={width - 64}
-            height={220}
-            innerRadius={70}
-            labelRadius={100}
-            style={{
-              labels: {
-                fill: theme.colors.textSecondary,
-                fontSize: 12
-              }
-            }}
-            labelComponent={
-              <VictoryLabel
-                style={{ fill: theme.colors.textSecondary, fontSize: 12 }}
-                text={({ datum }) => `${datum.x}: ${Math.round((datum.y / stats.totalAttendees) * 100)}%`}
-              />
-            }
-          />
-          <View style={styles.centerLabel}>
-            <Text style={[theme.typography.heading1, { color: theme.colors.primary }]}>
-              {stats.checkInRate}%
-            </Text>
-            <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-              Check-in Rate
-            </Text>
-          </View>
-        </View>
-      </Animated.View>
-    ) : (
-      <Animated.View 
-        style={[
-          styles.chartCard, 
-          { 
-            backgroundColor: theme.colors.backgroundPrimary,
-            borderRadius: theme.borderRadius.lg,
-            ...theme.shadows.md 
-          }
-        ]}
-        entering={FadeInDown.delay(300).springify()}
-        layout={Layout.springify()}
-      >
-        <Text style={[theme.typography.heading2, { color: theme.colors.textPrimary }]}>
-          Check-in Distribution
-        </Text>
-        <View style={styles.emptyChartContainer}>
-          <Users size={48} color={theme.colors.textTertiary} weight="light" />
-          <Text style={[theme.typography.body, { color: theme.colors.textSecondary, marginTop: theme.spacing.md }]}>
-            No attendee data in this period
-          </Text>
-        </View>
-      </Animated.View>
-    )
-  );
-
   if (loading && !refreshing && events.length === 0) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
@@ -751,7 +330,7 @@ export default function StatsScreen() {
   return (
     <ScrollView 
       style={{ flex: 1, backgroundColor: theme.colors.backgroundSecondary }} 
-      contentContainerStyle={[styles.container, { paddingHorizontal: theme.spacing.lg }]}
+      contentContainerStyle={[styles.container, { paddingHorizontal: theme.spacing.sm }]}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -761,13 +340,35 @@ export default function StatsScreen() {
         />
       }
     >
-      {renderHeader()}
-      {renderDistributionChart()}
-      {renderTimeFilter()}
-      {renderOverviewSection()}
-      {renderEventInsights()}
-      {renderEventsChart()}
-      {renderCheckInChart()}
+      <StatsHeader />
+      <TimeFilterComponent timeFilter={timeFilter} setTimeFilter={setTimeFilter} />
+      <OverviewSection stats={stats} />
+      <EventDistributionChart data={chartData.distributionData} />
+      <SectionHeader title="Attendance Analytics" />
+      <AttendanceTrendChart data={chartData.trendData} />
+      <AttendeeTypeChart data={chartData.attendeeTypeData} />
+      <SectionHeader title="Event Insights" />
+      <EventInsights stats={{
+        avgAttendeesPerEvent: stats.avgAttendeesPerEvent,
+        mostPopularEvent: stats.mostPopularEvent ? {
+          title: stats.mostPopularEvent.title,
+          attendees_count: stats.mostPopularEvent.attendees_count
+        } : undefined,
+        mostRecentEvent: stats.mostRecentEvent ? {
+          title: stats.mostRecentEvent.title,
+          date: stats.mostRecentEvent.date
+        } : undefined
+      }} />
+      <EventsBarChart data={chartData.barData} customTheme={customTheme} />
+      <CheckInChart 
+        data={chartData.pieData} 
+        stats={chartData.pieStats}
+      />
+      <SectionHeader title="Check-in Efficiency" />
+      <CheckinActivityHeatMap data={chartData.heatMapData} />
+      <CheckinSpeedGauge value={chartData.checkinSpeed} label="Average Check-in Speed" unit="per minute" />
+      <EventCompletionBars events={chartData.eventCompletionData} title="Event Completion Status" />
+      <CheckinRateTrendChart data={chartData.checkinRateTrendData} title="Check-in Rate Over Time (Sample)" />
     </ScrollView>
   );
 }
@@ -785,27 +386,6 @@ const styles = StyleSheet.create({
   headerContainer: {
     marginBottom: 16,
     paddingHorizontal: 24,
-  },
-  filterContainer: {
-    flexDirection: 'row',
-    marginBottom: 24,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  filterButton: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  activeFilter: {
-    backgroundColor: 'rgba(100, 100, 255, 0.08)',
-  },
-  filterText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#888',
   },
   summaryCard: {
     padding: 20,
