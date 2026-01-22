@@ -17,6 +17,7 @@ import { initDatabase } from "../services/DatabaseService";
 
 // Initialize the database on app startup
 try {
+  console.log("Starting database initialization...");
   initDatabase();
   console.log("Database initialized successfully on app start.");
 } catch (error) {
@@ -39,10 +40,12 @@ export const unstable_settings = {
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  console.log("Rendering RootLayout component");
   const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
     ...FontAwesome.font,
   });
+  console.log("Fonts loaded:", loaded, "Font error:", error ? error.message : 'none');
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
@@ -51,19 +54,24 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (loaded) {
-      SplashScreen.hideAsync();
+      console.log("Fonts loaded, hiding splash screen");
+      SplashScreen.hideAsync().catch(e => console.log("Error hiding splash screen:", e));
     }
   }, [loaded]);
 
   if (!loaded) {
+    console.log("Fonts not loaded yet, returning null");
     return null;
   }
+  console.log("Fonts loaded, proceeding to render RootLayoutNav");
 
   return <RootLayoutNav />;
 }
 
 function RootLayoutNav() {
+  console.log("Rendering RootLayoutNav component");
   const colorScheme = useColorScheme();
+  console.log("Color scheme:", colorScheme);
 
   return (
     <ThemeProvider>
@@ -105,6 +113,14 @@ function RootLayoutNav() {
             />
             <Stack.Screen
               name="event/attendee-details/[id]"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="event/scan/[id]"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="event/attendee-qr/[id]"
               options={{ headerShown: false }}
             />
           </Stack>

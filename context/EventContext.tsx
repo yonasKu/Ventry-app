@@ -4,7 +4,9 @@ import { DatabaseService, Event, Attendee } from '../services/DatabaseService';
 import { Alert } from 'react-native';
 
 // Create an instance of the DatabaseService
+console.log('Creating DatabaseService instance in EventContext');
 const dbService = new DatabaseService();
+console.log('DatabaseService instance created successfully');
 
 // Define the EventContext type
 interface EventContextType {
@@ -17,8 +19,9 @@ interface EventContextType {
   updateEvent: (id: string, eventData: Partial<Omit<Event, 'id' | 'created_at' | 'updated_at'>>) => Promise<boolean>;
   deleteEvent: (id: string) => Promise<boolean>;
   getAttendees: (eventId: string) => Promise<Attendee[]>;
+  getAttendeeById: (attendeeId: string) => Promise<Attendee | null>;
   addAttendee: (eventId: string, attendeeData: { name: string, email?: string, phone?: string }) => Promise<Attendee>;
-  checkInAttendee: (attendeeId: string) => Promise<boolean>;
+  checkInAttendee: (attendeeId: string, eventId: string) => Promise<Attendee | null>;
   deleteAttendee: (attendeeId: string) => Promise<boolean>;
 }
 
@@ -27,6 +30,7 @@ const EventContext = createContext<EventContextType | undefined>(undefined);
 
 // Create a provider component
 export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  console.log('Rendering EventProvider component');
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,19 +38,23 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Initialize the database and load events
   useEffect(() => {
-    console.log('EventContext initialized');
+    console.log('EventContext useEffect running - setting initialized');
     setInitialized(true);
+    console.log('EventContext initialized set to true');
   }, []);
 
   useEffect(() => {
     if (initialized) {
-      refreshEvents();
+      console.log('EventContext initialized, calling refreshEvents');
+      refreshEvents().catch(err => console.error('Error in refreshEvents:', err));
     }
   }, [initialized]);
 
   // Refresh events - async for better UI response with larger datasets
   const refreshEvents = async () => {
+    console.log('refreshEvents called');
     try {
+      console.log('Setting loading to true');
       setLoading(true);
       console.log('Fetching events...');
       const fetchedEvents = await dbService.getEventsAsync();
@@ -157,14 +165,16 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Check in attendee - async
-  const checkInAttendee = async (attendeeId: string) => {
+  const checkInAttendee = async (attendeeId: string, eventId: string): Promise<Attendee | null> => {
     try {
-      console.log(`Checking in attendee ID: ${attendeeId}`);
-      return await dbService.checkInAttendeeAsync(attendeeId);
+      console.log(`Checking in attendee ID: ${attendeeId} for event ID: ${eventId}`);
+      // Ensure this matches the updated DatabaseService method signature
+      return await dbService.checkInAttendeeAsync(attendeeId, eventId);
     } catch (err) {
       console.error('Error checking in attendee:', err);
       setError('Failed to check in attendee');
-      return false;
+      // Return null on error, as ScanScreen expects Attendee | null
+      return null;
     }
   };
 
@@ -180,6 +190,18 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  // Get a single attendee by ID - async
+  const getAttendeeById = async (attendeeId: string): Promise<Attendee | null> => {
+    try {
+      console.log(`Getting attendee with ID: ${attendeeId}`);
+      return await dbService.getAttendeeByIdAsync(attendeeId);
+    } catch (err) {
+      console.error('Error getting attendee:', err);
+      setError('Failed to get attendee');
+      return null;
+    }
+  };
+
   return (
     <EventContext.Provider 
       value={{ 
@@ -192,6 +214,7 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateEvent, 
         deleteEvent,
         getAttendees,
+        getAttendeeById,
         addAttendee,
         checkInAttendee,
         deleteAttendee

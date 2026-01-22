@@ -44,36 +44,38 @@ const COLORS = {
   }
 };
 
+type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
+
 // Typography styles
 const TYPOGRAPHY = {
   display: {
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: '700' as FontWeight,
     lineHeight: 34,
   },
   heading1: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: '700' as FontWeight,
     lineHeight: 28,
   },
   heading2: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '600' as FontWeight,
     lineHeight: 24,
   },
   bodyLarge: {
     fontSize: 16,
-    fontWeight: '400',
+    fontWeight: '400' as FontWeight,
     lineHeight: 22,
   },
   body: {
     fontSize: 14,
-    fontWeight: '400',
+    fontWeight: '400' as FontWeight,
     lineHeight: 20,
   },
   caption: {
     fontSize: 12,
-    fontWeight: '400',
+    fontWeight: '400' as FontWeight,
     lineHeight: 16,
   },
 };
@@ -147,6 +149,10 @@ export interface Theme {
     // UI element colors
     border: string;
     divider: string;
+    
+    // Additional colors
+    neutralBlack: string;
+    neutralWhite: string;
   };
   typography: typeof TYPOGRAPHY;
   spacing: typeof SPACING;
@@ -188,6 +194,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       textTertiary: isDark ? COLORS.dark.textTertiary : COLORS.light.textTertiary,
       border: isDark ? COLORS.dark.border : COLORS.light.border,
       divider: isDark ? COLORS.dark.divider : COLORS.light.divider,
+
+      // Additional colors
+      neutralBlack: COLORS.neutralBlack,
+      neutralWhite: COLORS.neutralWhite,
     },
     typography: TYPOGRAPHY,
     spacing: SPACING,

@@ -18,9 +18,9 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { CaretLeft, Users, MagnifyingGlass, QrCode, X, ClipboardText, UserPlus, Upload } from 'phosphor-react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import * as Clipboard from 'expo-clipboard';
-import Papa from 'papaparse';
+import CsvService, { CSV_TEMPLATES, ImportAttendee } from '../../../services/CsvService';
 import { BlurView } from 'expo-blur';
-import { DatabaseService } from '../../../services/DatabaseService';
+import { DatabaseService, Event, Attendee } from '../../../services/DatabaseService';
 import * as _ from 'lodash';
 import AttendeeQRCode from '../../../components/AttendeeQRCode';
 
@@ -32,15 +32,11 @@ import ManualEntryTab from './components/ManualEntryTab';
 import AttendeePreview from './components/AttendeePreview';
 import ImportButton from './components/ImportButton';
 import AttendeeCard from './components/AttendeeCard';
+import FileImportButton from './components/FileImportButton';
+import ValidationErrors from './components/ValidationErrors';
+import TemplateSelector from './components/TemplateSelector';
 
-export type ImportAttendee = {
-  id?: string; // Optional, if you plan to edit existing ones, but for import, usually new
-  name: string;
-  email?: string;
-  phone?: string;
-  isValid: boolean;
-  errorMessage?: string;
-};
+// Using ImportAttendee from CsvService
 
 export default function ImportAttendeesScreen() {
   const theme = useTheme();
@@ -56,7 +52,10 @@ export default function ImportAttendeesScreen() {
   const [parsedAttendees, setParsedAttendees] = useState<ImportAttendee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
-  const [importFormat, setImportFormat] = useState<'csv' | 'simple'>('simple');
+  const [importFormat, setImportFormat] = useState<'csv' | 'simple'>('csv');
+  const [selectedTemplate, setSelectedTemplate] = useState<keyof typeof CSV_TEMPLATES>('STANDARD');
+  const [validationErrors, setValidationErrors] = useState<{message: string; row?: number; type?: string}[]>([]);
+  const [missingColumns, setMissingColumns] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<'paste' | 'manual'>('paste');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAttendee, setSelectedAttendee] = useState<ImportAttendee | null>(null);
@@ -125,6 +124,8 @@ export default function ImportAttendeesScreen() {
   const parseAttendees = () => {
     if (!importText.trim()) {
       setParsedAttendees([]);
+      setValidationErrors([]);
+      setMissingColumns([]);
       return;
     }
 
@@ -132,29 +133,32 @@ export default function ImportAttendeesScreen() {
 
     if (importFormat === 'csv') {
       try {
-        const results = Papa.parse(importText.trim(), { header: true, skipEmptyLines: true });
-        if (results.errors.length > 0) {
-            console.error('CSV parsing errors:', results.errors);
-            Alert.alert('CSV Parsing Error', `Problem with CSV data: ${results.errors[0].message}. Please check row ${results.errors[0].row}.`);
+        // Use our enhanced CsvService for parsing with validation
+        const result = CsvService.parseAttendeesFromCsv(importText.trim(), selectedTemplate);
+        
+        // Set validation errors and missing columns
+        setValidationErrors(result.errors);
+        setMissingColumns(result.missingRequiredColumns);
+        
+        // Set attendees
+        attendees = result.attendees;
+        
+        // Show alerts for critical errors
+        if (result.missingRequiredColumns.length > 0) {
+          Alert.alert(
+            'Missing Required Columns', 
+            `The CSV is missing these required columns: ${result.missingRequiredColumns.join(', ')}`
+          );
+        } else if (result.errors.length > 0 && attendees.length === 0) {
+          Alert.alert(
+            'CSV Parsing Error', 
+            `Failed to parse CSV data: ${result.errors[0].message}`
+          );
         }
-        if (results.data && Array.isArray(results.data)) {
-          attendees = results.data.map((row: any) => {
-            const name = row.name || row.Name || '';
-            const email = row.email || row.Email || '';
-            const phone = row.phone || row.Phone || '';
-            const isValid = !!name.trim();
-            return {
-              name: name.trim(),
-              email: email.trim(),
-              phone: phone.trim(),
-              isValid,
-              errorMessage: !isValid ? 'Name is required' : undefined,
-            };
-          });
-        }
-      } catch (error) {
+      } catch (error: any) {
         console.error('CSV parsing exception:', error);
-        Alert.alert('Error', 'Failed to parse CSV data. Ensure it is valid CSV.');
+        Alert.alert('Error', `Failed to parse CSV data: ${error.message || 'Unknown error'}`);
+        setValidationErrors([{ message: error.message || 'Unknown error' }]);
       }
     } else { // Simple format
       attendees = importText
@@ -175,10 +179,16 @@ export default function ImportAttendeesScreen() {
             errorMessage: !isValid ? 'Name is required' : undefined,
           };
         });
+      
+      // Clear validation errors for simple format
+      setValidationErrors([]);
+      setMissingColumns([]);
     }
+    
     setParsedAttendees(attendees);
-    if (attendees.length === 0 && importText.trim().length > 0) {
-        Alert.alert('No Attendees Parsed', 'Could not find any attendee data in the provided text. Please check the format.');
+    
+    if (attendees.length === 0 && importText.trim().length > 0 && validationErrors.length === 0) {
+      Alert.alert('No Attendees Parsed', 'Could not find any attendee data in the provided text. Please check the format.');
     }
   };
 
@@ -191,11 +201,39 @@ export default function ImportAttendeesScreen() {
   const handlePaste = async () => {
     try {
       const text = await Clipboard.getStringAsync();
-      setImportText(text);
-    } catch (error) {
+      if (text) {
+        setImportText(text);
+      }
+    } catch (error: any) {
       console.error('Error pasting from clipboard:', error);
       Alert.alert('Paste Error', 'Could not paste text from clipboard.');
     }
+  };
+
+  const handleImportFile = async () => {
+    try {
+      const csvContent = await CsvService.importCsvFile();
+      if (csvContent) {
+        setImportText(csvContent);
+        // Auto-parse after import
+        setTimeout(() => {
+          parseAttendees();
+        }, 300);
+      }
+    } catch (error: any) {
+      console.error('Error importing CSV file:', error);
+      Alert.alert('Import Error', error.message || 'Failed to import CSV file');
+    }
+  };
+
+  const handleDownloadTemplate = (template: keyof typeof CSV_TEMPLATES) => {
+    const templateContent = CsvService.generateCsvTemplate(template);
+    Clipboard.setStringAsync(templateContent).then(() => {
+      Alert.alert(
+        'Template Copied', 
+        'CSV template has been copied to clipboard. You can paste it into a text editor or spreadsheet application.'
+      );
+    });
   };
 
   const handleAddAttendee = () => {
@@ -242,11 +280,11 @@ export default function ImportAttendeesScreen() {
 
     try {
       for (const attendee of validAttendees) {
-        // Type assertion for attendee data being passed to db.addAttendee
-        const attendeeData: Omit<Attendee, 'id' | 'eventId' | 'isCheckedIn' | 'checkInTime'> = {
-            name: attendee.name,
-            email: attendee.email,
-            phone: attendee.phone,
+        // Convert ImportAttendee to the format expected by DatabaseService
+        const attendeeData = {
+          name: attendee.name,
+          email: attendee.email || undefined,
+          phone: attendee.phone || undefined,
         };
         db.addAttendee(eventId, attendeeData);
         successCount++;
@@ -277,7 +315,7 @@ export default function ImportAttendeesScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.loadingContainer, { backgroundColor: theme.colors.backgroundPrimary }]}>
         <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
         <ActivityIndicator size="large" color={theme.colors.primary} />
         <Text style={[styles.loadingText, { color: theme.colors.textPrimary }]}>Loading event...</Text>
@@ -287,11 +325,14 @@ export default function ImportAttendeesScreen() {
 
   if (!event) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.loadingContainer, { backgroundColor: theme.colors.backgroundPrimary }]}>
          <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
         <Text style={[styles.loadingText, { color: theme.colors.textPrimary }]}>Event not found.</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.simpleButton}>
-            <Text style={{color: theme.colors.primary}}>Go Back</Text>
+        <TouchableOpacity 
+          onPress={() => router.back()} 
+          style={[styles.backButton, { backgroundColor: theme.colors.backgroundSecondary }]}
+        >
+          <Text style={{color: theme.colors.primary}}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -336,34 +377,43 @@ export default function ImportAttendeesScreen() {
           </View>
 
           {/* Tab Selector */}
-          <View style={[styles.tabContainer, { backgroundColor: theme.colors.backgroundPrimary }]}>
-            <TouchableOpacity 
-              style={[styles.tab, activeTab === 'paste' && [styles.activeTab, { borderBottomColor: theme.colors.primary }]]}
-              onPress={() => setActiveTab('paste')}
-            >
-              <ClipboardText 
-                size={18} 
-                color={activeTab === 'paste' ? theme.colors.primary : theme.colors.textSecondary} 
-                weight={activeTab === 'paste' ? "bold" : "regular"}
-              />
-              <Text style={[styles.tabText, { color: activeTab === 'paste' ? theme.colors.primary : theme.colors.textSecondary }]}>
-                Paste Data
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.tab, activeTab === 'manual' && [styles.activeTab, { borderBottomColor: theme.colors.primary }]]}
-              onPress={() => setActiveTab('manual')}
-            >
-              <UserPlus 
-                size={18} 
-                color={activeTab === 'manual' ? theme.colors.primary : theme.colors.textSecondary} 
-                weight={activeTab === 'manual' ? "bold" : "regular"}
-              />
-              <Text style={[styles.tabText, { color: activeTab === 'manual' ? theme.colors.primary : theme.colors.textSecondary }]}>
-                Manual Entry
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <TabSelector
+            theme={theme}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+          
+          {/* File Import Button */}
+          {activeTab === 'paste' && importFormat === 'csv' && (
+            <FileImportButton 
+              theme={theme} 
+              onImportFile={handleImportFile} 
+              isLoading={isImporting} 
+            />
+          )}
+          
+          {/* Template Selector */}
+          {activeTab === 'paste' && importFormat === 'csv' && (
+            <TemplateSelector
+              theme={theme}
+              selectedTemplate={selectedTemplate}
+              onSelectTemplate={setSelectedTemplate}
+              onDownloadTemplate={handleDownloadTemplate}
+            />
+          )}
+          
+          {/* Validation Errors */}
+          {validationErrors.length > 0 || missingColumns.length > 0 ? (
+            <ValidationErrors
+              theme={theme}
+              errors={validationErrors}
+              missingColumns={missingColumns}
+              onDismiss={() => {
+                setValidationErrors([]);
+                setMissingColumns([]);
+              }}
+            />
+          ) : null}
 
           {activeTab === 'paste' && (
             <PasteTab
@@ -374,6 +424,8 @@ export default function ImportAttendeesScreen() {
               handleImportFormat={handleImportFormat}
               handlePaste={handlePaste}
               parseAttendees={parseAttendees}
+              selectedTemplate={selectedTemplate}
+              onTemplateChange={setSelectedTemplate}
             />
           )}
 
@@ -481,11 +533,11 @@ export default function ImportAttendeesScreen() {
         onRequestClose={() => setQrModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.colors.backgroundPrimary }, theme.shadows.lg]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.backgroundPrimary }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>Attendee QR Code</Text>
-              <TouchableOpacity onPress={() => setQrModalVisible(false)} style={styles.closeButton}>
-                <X size={24} color={theme.colors.textPrimary} weight="bold" />
+              <TouchableOpacity onPress={() => setQrModalVisible(false)} style={[styles.closeButton, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                <Text style={{color: theme.colors.primary}}>Go Back</Text>
               </TouchableOpacity>
             </View>
             
@@ -565,6 +617,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   eventName: {
     fontSize: 20,
@@ -593,6 +650,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
   },
   tab: {
     flex: 1,
@@ -623,6 +685,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
   },
   searchIcon: {
     marginRight: 8,
@@ -645,7 +713,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
-    elevation: 1,
+    backgroundColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   attendeeCardContainer: {
     flexDirection: 'row',
@@ -672,6 +745,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 1,
   },
   emptyStateText: {
     fontSize: 16,
@@ -682,6 +761,11 @@ const styles = StyleSheet.create({
     padding: 16,
     borderTopWidth: 1,
     backgroundColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 4,
   },
   importButton: {
     flexDirection: 'row',
@@ -689,6 +773,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 14,
     borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
   },
   importButtonText: {
     color: '#fff',
@@ -708,6 +797,12 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     alignItems: 'center',
+    backgroundColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 5,
   },
   modalHeader: {
     width: '100%',

@@ -412,7 +412,14 @@ export default function EventDetailScreen() {
                 styles.actionButtonCard,
                 { backgroundColor: theme.colors.backgroundPrimary },
               ]}
-              onPress={() => router.push(`/event/check-in/${id}`)}
+              onPress={() => {
+                console.log("Navigating to check-in page with ID:", id);
+                // Use navigate instead of push for more reliable navigation
+                router.navigate({
+                  pathname: "/event/check-in/[id]",
+                  params: { id }
+                });
+              }}
             >
               <View
                 style={[
@@ -433,6 +440,35 @@ export default function EventDetailScreen() {
                 ]}
               >
                 Check-In
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.actionButtonCard,
+                { backgroundColor: theme.colors.backgroundPrimary },
+              ]}
+              onPress={() => router.push(`/event/scan/${id}`)}
+            >
+              <View
+                style={[
+                  styles.actionIconContainer,
+                  { backgroundColor: `${theme.colors.primary}15` },
+                ]}
+              >
+                <QrCode
+                  size={24}
+                  color={theme.colors.primary}
+                  weight="fill"
+                />
+              </View>
+              <Text
+                style={[
+                  styles.actionButtonLabel,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                Scan QR
               </Text>
             </TouchableOpacity>
 
@@ -486,7 +522,7 @@ export default function EventDetailScreen() {
                   { color: theme.colors.textPrimary },
                 ]}
               >
-                QR Code
+                Event QR
               </Text>
             </TouchableOpacity>
 
@@ -574,6 +610,67 @@ export default function EventDetailScreen() {
                 ]}
               >
                 Edit
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.actionButtonCard,
+                { backgroundColor: theme.colors.backgroundPrimary },
+              ]}
+              onPress={() => router.push(`/event/export/${id}`)}
+            >
+              <View
+                style={[
+                  styles.actionIconContainer,
+                  { backgroundColor: `${theme.colors.primary}15` },
+                ]}
+              >
+                <FileArrowDown
+                  size={24}
+                  color={theme.colors.primary}
+                  weight="fill"
+                />
+              </View>
+              <Text
+                style={[
+                  styles.actionButtonLabel,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                Export
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.actionButtonCard,
+                { backgroundColor: theme.colors.backgroundPrimary },
+              ]}
+              onPress={() => {
+                // Navigate to attendee list where they can select an attendee to view their QR code
+                router.push(`/event/attendees/${id}?mode=qr`);
+              }}
+            >
+              <View
+                style={[
+                  styles.actionIconContainer,
+                  { backgroundColor: `${theme.colors.primary}15` },
+                ]}
+              >
+                <QrCode
+                  size={24}
+                  color={theme.colors.primary}
+                  weight="fill"
+                />
+              </View>
+              <Text
+                style={[
+                  styles.actionButtonLabel,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                Attendee QRs
               </Text>
             </TouchableOpacity>
           </View>

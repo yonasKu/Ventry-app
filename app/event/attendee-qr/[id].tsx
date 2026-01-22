@@ -1,72 +1,92 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Share, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Share, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { CaretLeft, ShareNetwork } from 'phosphor-react-native';
 import QRCode from 'react-native-qrcode-svg';
-import { useTheme } from '@/context/ThemeContext';
-import { useEvents } from '@/context/EventContext';
-import { generateEventQRData } from '@/services/QRValidationService';
+import { useTheme } from '../../../context/ThemeContext';
+import { useEvents } from '../../../context/EventContext';
+import { Attendee } from '../../../services/DatabaseService';
 
-export default function EventQRScreen() {
+export default function AttendeeQRScreen() {
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { getEventById } = useEvents();
+  const { getAttendeeById, getEventById } = useEvents();
   
+  const [attendee, setAttendee] = useState<Attendee | null>(null);
   const [event, setEvent] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadEvent();
+    loadAttendeeAndEvent();
   }, [id]);
 
-  const loadEvent = async () => {
+  const loadAttendeeAndEvent = async () => {
     if (!id) return;
     
     setIsLoading(true);
     try {
-      const eventData = await getEventById(id);
+      const attendeeData = await getAttendeeById(id);
+      if (!attendeeData) {
+        setError('Attendee not found');
+        setIsLoading(false);
+        return;
+      }
+      
+      setAttendee(attendeeData);
+      
+      // Load event data
+      const eventData = await getEventById(attendeeData.event_id);
       setEvent(eventData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load event');
-      console.error('Error loading event:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load attendee');
+      console.error('Error loading attendee:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleShare = async () => {
-    if (!event) return;
+    if (!attendee || !event) return;
     
     try {
       const result = await Share.share({
-        message: `Join me at ${event.title}! Scan this QR code to check in.`,
+        message: `Check-in QR code for ${attendee.name} at ${event.title}`,
         // In a real app, you would generate a shareable URL or image here
       });
     } catch (error) {
       console.error('Error sharing:', error);
+      Alert.alert('Error', 'Failed to share QR code');
     }
   };
 
-  // Generate a QR code value that includes the event ID and any other relevant information
+  // Generate a QR code value that includes the attendee ID, event ID, and other relevant information
   const getQRValue = () => {
-    if (!event) return '';
+    if (!attendee || !event) return '';
     
-    // Use the standardized QR data format from our validation service
-    return generateEventQRData(event);
+    // Create a JSON object with attendee and event details
+    const qrData = {
+      type: 'ventry-attendee',
+      id: attendee.id,
+      eventId: event.id,
+      name: attendee.name,
+      timestamp: new Date().toISOString()
+    };
+    
+    return JSON.stringify(qrData);
   };
 
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
-        <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary }]}>
+        <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary, borderBottomColor: theme.colors.border }]}>
           <TouchableOpacity 
             style={styles.backButton} 
             onPress={() => router.back()}
           >
             <CaretLeft size={24} color={theme.colors.primary} weight="regular" />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Event QR Code</Text>
+          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Attendee QR Code</Text>
           <View style={styles.headerRight} />
         </View>
         <View style={styles.loadingContainer}>
@@ -76,28 +96,28 @@ export default function EventQRScreen() {
     );
   }
 
-  if (error || !event) {
+  if (error || !attendee || !event) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
-        <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary }]}>
+        <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary, borderBottomColor: theme.colors.border }]}>
           <TouchableOpacity 
             style={styles.backButton} 
             onPress={() => router.back()}
           >
             <CaretLeft size={24} color={theme.colors.primary} weight="regular" />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Event QR Code</Text>
+          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Attendee QR Code</Text>
           <View style={styles.headerRight} />
         </View>
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: theme.colors.error }]}>
-            {error || 'Event not found'}
+            {error || 'Failed to load attendee information'}
           </Text>
           <TouchableOpacity 
             style={[styles.retryButton, { backgroundColor: theme.colors.primary }]}
-            onPress={loadEvent}
+            onPress={loadAttendeeAndEvent}
           >
-            <Text style={[styles.retryButtonText, { color: 'white' }]}>Retry</Text>
+            <Text style={[styles.retryButtonText, { color: theme.colors.backgroundPrimary }]}>Retry</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -106,44 +126,47 @@ export default function EventQRScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
-      <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary }]}>
+      <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary, borderBottomColor: theme.colors.border }]}>
         <TouchableOpacity 
           style={styles.backButton} 
           onPress={() => router.back()}
         >
           <CaretLeft size={24} color={theme.colors.primary} weight="regular" />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Event QR Code</Text>
+        <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Attendee QR Code</Text>
         <TouchableOpacity 
-          style={styles.shareButton}
+          style={styles.shareButton} 
           onPress={handleShare}
         >
           <ShareNetwork size={24} color={theme.colors.primary} weight="regular" />
         </TouchableOpacity>
       </View>
-
+      
       <View style={styles.contentContainer}>
-        <Text style={[styles.eventTitle, { color: theme.colors.textPrimary }]}>{event.title}</Text>
-        
-        <View style={[styles.qrContainer, { backgroundColor: 'white' }]}>
-          <QRCode
-            value={getQRValue()}
-            size={250}
-            color="black"
-            backgroundColor="white"
-          />
+        <View style={[styles.card, { backgroundColor: theme.colors.backgroundPrimary, borderColor: theme.colors.border }]}>
+          <Text style={[styles.attendeeName, { color: theme.colors.textPrimary }]}>{attendee.name}</Text>
+          <Text style={[styles.eventTitle, { color: theme.colors.textSecondary }]}>{event.title}</Text>
+          
+          <View style={styles.qrContainer}>
+            <QRCode
+              value={getQRValue()}
+              size={200}
+              color={theme.colors.textPrimary}
+              backgroundColor={theme.colors.backgroundPrimary}
+            />
+          </View>
+          
+          <Text style={[styles.instructions, { color: theme.colors.textSecondary }]}>
+            Present this QR code at the event check-in counter
+          </Text>
         </View>
-        
-        <Text style={[styles.instructionText, { color: theme.colors.textSecondary }]}>
-          Have attendees scan this QR code to check in to your event
-        </Text>
         
         <TouchableOpacity 
           style={[styles.shareButtonLarge, { backgroundColor: theme.colors.primary }]}
           onPress={handleShare}
         >
-          <ShareNetwork size={20} color="white" weight="regular" style={styles.shareIcon} />
-          <Text style={styles.shareButtonText}>Share QR Code</Text>
+          <ShareNetwork size={20} color={theme.colors.backgroundPrimary} weight="regular" style={styles.shareIcon} />
+          <Text style={[styles.shareButtonText, { color: theme.colors.backgroundPrimary }]}>Share QR Code</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -160,19 +183,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
+    borderBottomWidth: 1,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   backButton: {
     padding: 8,
   },
-  headerRight: {
-    width: 40,
-  },
   shareButton: {
     padding: 8,
+  },
+  headerRight: {
+    width: 40,
   },
   loadingContainer: {
     flex: 1,
@@ -197,29 +221,42 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '500',
   },
   contentContainer: {
     flex: 1,
-    alignItems: 'center',
     padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  card: {
+    width: '100%',
+    maxWidth: 320,
+    padding: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  attendeeName: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 4,
+    textAlign: 'center',
   },
   eventTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 16,
+    marginBottom: 24,
     textAlign: 'center',
-    marginBottom: 30,
   },
   qrContainer: {
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 30,
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 24,
   },
-  instructionText: {
-    fontSize: 16,
+  instructions: {
+    fontSize: 14,
     textAlign: 'center',
-    marginBottom: 30,
-    paddingHorizontal: 20,
+    marginBottom: 8,
   },
   shareButtonLarge: {
     flexDirection: 'row',
@@ -228,13 +265,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
+    marginTop: 24,
   },
   shareIcon: {
     marginRight: 8,
   },
   shareButtonText: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: 'white',
+    fontWeight: '500',
   },
 });

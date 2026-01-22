@@ -12,7 +12,7 @@ type AttendeeCardProps = {
   };
   index: number;
   theme: any;
-  handleUpdateAttendee: (index: number, field: string, value: string) => void;
+  handleUpdateAttendee: (index: number, field: any, value: string) => void;
   handleRemoveAttendee: (index: number) => void;
 };
 
@@ -30,7 +30,13 @@ const AttendeeCard = ({
         backgroundColor: theme.colors.cardBackground,
         borderLeftColor: attendee.isValid ? theme.colors.success : theme.colors.error 
       },
-      theme.shadows.sm
+      {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 2,
+      }
     ]}
   >
     <View style={styles.attendeeCardContent}>
@@ -116,6 +122,8 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     marginBottom: 16,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
   },
   attendeeCardContent: {
     padding: 16,
@@ -134,6 +142,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     fontSize: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 1,
+    elevation: 1,
   },
   deleteButton: {
     position: 'absolute',

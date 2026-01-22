@@ -1,24 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, TextInput, FlatList, RefreshControl, ActivityIndicator, Alert, StatusBar } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { CaretLeft, MagnifyingGlass, UserCirclePlus, DotsThreeVertical, Trash, PencilSimple, Users, Calendar, CheckCircle, QrCode, Eye } from 'phosphor-react-native';
+import { CaretLeft, MagnifyingGlass, UserCirclePlus, DotsThreeVertical, Trash, PencilSimple, Users, Calendar, CheckCircle, QrCode, Eye, FileArrowDown } from 'phosphor-react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { useEvents } from '../../../context/EventContext';
+import { Attendee as DatabaseAttendee } from '../../../services/DatabaseService';
 import * as _ from 'lodash';
 
+// Local Attendee type that matches the database Attendee type but with optional fields
 type Attendee = {
   id: string;
+  event_id: string;
   name: string;
-  email?: string;
-  phone?: string;
+  email: string | null;
+  phone: string | null;
   checked_in: boolean;
   check_in_time?: string;
+  created_at: string;
+  updated_at: string;
 };
 
 export default function ManageAttendeesScreen() {
   const theme = useTheme();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const { getEventById } = useEvents();
+  const { id, mode } = useLocalSearchParams<{ id: string, mode?: string }>();
+  const { getEventById, checkInAttendee } = useEvents();
+  
+  // Check if we're in QR mode
+  const isQRMode = mode === 'qr';
   
   const [event, setEvent] = useState<any>(null);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
@@ -127,9 +135,11 @@ export default function ManageAttendeesScreen() {
     }
   };
   
-  const onRefresh = () => {
+  // Handle refresh from pull-to-refresh gesture
+  const handleRefresh = async () => {
     setRefreshing(true);
-    loadEventAndAttendees(false);
+    await loadEventAndAttendees(false);
+    setRefreshing(false);
   };
 
   const handleAddAttendee = () => {
@@ -194,6 +204,10 @@ export default function ManageAttendeesScreen() {
   const handleImportAttendees = () => {
     // Navigate to import attendees screen
     router.push(`/event/import-attendees/${id}`);
+  };
+
+  const handleExportData = () => {
+    router.push(`/event/export/${id}`);
   };
 
   // Handle check-in/out functionality
@@ -281,7 +295,7 @@ export default function ManageAttendeesScreen() {
             </Text>
             <TouchableOpacity 
               style={[styles.retryButton, { backgroundColor: theme.colors.primary }]}
-              onPress={loadEventAndAttendees}
+              onPress={() => loadEventAndAttendees()}
             >
               <Text style={[styles.retryButtonText, { color: 'white' }]}>Retry</Text>
             </TouchableOpacity>
@@ -364,6 +378,16 @@ export default function ManageAttendeesScreen() {
           </View>
           <Text style={[styles.actionButtonText, { color: theme.colors.textPrimary }]}>Import</Text>
         </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.actionButton, { backgroundColor: theme.colors.backgroundPrimary }]}
+          onPress={handleExportData}
+        >
+          <View style={[styles.actionIconContainer, { backgroundColor: theme.colors.primary }]}>
+            <FileArrowDown size={18} color="white" weight="fill" />
+          </View>
+          <Text style={[styles.actionButtonText, { color: theme.colors.textPrimary }]}>Export</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Attendee List */}
@@ -375,71 +399,92 @@ export default function ManageAttendeesScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={handleRefresh}
             colors={[theme.colors.primary]}
             tintColor={theme.colors.primary}
           />
         }
         renderItem={({ item }) => (
           <View style={[styles.attendeeCard, { backgroundColor: theme.colors.backgroundPrimary }, theme.shadows.sm]}>
-            <View style={styles.attendeeInfo}>
+            <TouchableOpacity 
+              style={styles.attendeeInfo}
+              onPress={() => {
+                if (isQRMode) {
+                  // Navigate to attendee QR code screen in QR mode
+                  router.push(`/event/attendee-qr/${item.id}`);
+                } else {
+                  // Default behavior - view details
+                  handleViewAttendeeDetails(item.id);
+                }
+              }}
+            >
               <Text style={[styles.attendeeName, { color: theme.colors.textPrimary }]}>{item.name}</Text>
               {item.email && (
                 <Text style={[styles.attendeeEmail, { color: theme.colors.textSecondary }]}>{item.email}</Text>
               )}
               
               {/* Check-in status button */}
-              <TouchableOpacity 
-                style={[
-                  styles.checkInButton, 
-                  { 
-                    backgroundColor: item.checked_in 
-                      ? theme.colors.success + '20' 
-                      : theme.colors.backgroundSecondary
-                  }
-                ]}
-                onPress={() => handleToggleCheckIn(item.id)}
-              >
-                {item.checked_in ? (
-                  <>
-                    <CheckCircle size={14} color={theme.colors.success} weight="fill" style={{ marginRight: 6 }} />
-                    <Text style={[styles.checkedInText, { color: theme.colors.success }]}>Checked In</Text>
-                  </>
-                ) : (
-                  <Text style={[styles.checkedInText, { color: theme.colors.textSecondary }]}>Not Checked In</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+              {!isQRMode && (
+                <TouchableOpacity 
+                  style={[
+                    styles.checkInButton, 
+                    { backgroundColor: item.checked_in ? theme.colors.success + '20' : theme.colors.backgroundSecondary }
+                  ]}
+                  onPress={() => handleToggleCheckIn(item.id)}
+                >
+                  {item.checked_in ? (
+                    <>
+                      <CheckCircle size={14} color={theme.colors.success} weight="fill" style={{ marginRight: 6 }} />
+                      <Text style={[styles.checkedInText, { color: theme.colors.success }]}>Checked In</Text>
+                    </>
+                  ) : (
+                    <Text style={[styles.checkedInText, { color: theme.colors.textSecondary }]}>Not Checked In</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
             
             {/* Action Buttons */}
             <View style={styles.actionButtons}>
-              {/* View Details Button */}
-              <TouchableOpacity 
-                style={styles.iconButton}
-                onPress={() => router.push(`/event/attendee-details/${id}?attendeeId=${item.id}`)}
-              >
-                <Eye size={20} color={theme.colors.primary} weight="regular" />
-              </TouchableOpacity>
-              
-              {/* QR Code Button */}
-              <TouchableOpacity 
-                style={styles.iconButton}
-                onPress={() => router.push(`/event/attendee-details/${id}?attendeeId=${item.id}`)}
-              >
-                <QrCode size={20} color={theme.colors.primary} weight="regular" />
-              </TouchableOpacity>
-              
-              {/* Menu button */}
-              <TouchableOpacity 
-                style={styles.menuButton}
-                onPress={() => toggleAttendeeMenu(item.id)}
-              >
-                <DotsThreeVertical size={20} color={theme.colors.textSecondary} weight="regular" />
-              </TouchableOpacity>
+              {isQRMode ? (
+                /* QR Code Button - prominent in QR mode */
+                <TouchableOpacity 
+                  style={styles.iconButton}
+                  onPress={() => router.push(`/event/attendee-qr/${item.id}`)}
+                >
+                  <QrCode size={20} color={theme.colors.primary} weight="bold" />
+                </TouchableOpacity>
+              ) : (
+                <>
+                  {/* View Details Button - only in normal mode */}
+                  <TouchableOpacity 
+                    style={styles.iconButton}
+                    onPress={() => handleViewAttendeeDetails(item.id)}
+                  >
+                    <Eye size={20} color={theme.colors.primary} weight="regular" />
+                  </TouchableOpacity>
+                  
+                  {/* QR Code Button - only in normal mode */}
+                  <TouchableOpacity 
+                    style={styles.iconButton}
+                    onPress={() => router.push(`/event/attendee-qr/${item.id}`)}
+                  >
+                    <QrCode size={20} color={theme.colors.primary} weight="regular" />
+                  </TouchableOpacity>
+                  
+                  {/* Menu button - only in normal mode */}
+                  <TouchableOpacity 
+                    style={styles.menuButton}
+                    onPress={() => toggleAttendeeMenu(item.id)}
+                  >
+                    <DotsThreeVertical size={20} color={theme.colors.textSecondary} weight="regular" />
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
             
             {/* Dropdown menu - positioned absolutely */}
-            {selectedAttendee === item.id && (
+            {!isQRMode && selectedAttendee === item.id && (
               <View 
                 style={[
                   styles.menuPopupContainer,
@@ -689,7 +734,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   menuPopupContainer: {
-    position: 'fixed',
+    position: 'absolute',
     top: 0,
     left: 0,
     right: 0,

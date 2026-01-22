@@ -4,25 +4,14 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { CaretLeft, MagnifyingGlass, UserCirclePlus, QrCode, Users } from 'phosphor-react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { useEvents } from '../../../context/EventContext';
-import { Attendee as DatabaseAttendee } from '../../../services/DatabaseService';
 import * as _ from 'lodash';
-
-// Local Attendee type that matches the database structure
-type Attendee = {
-  id: string;
-  event_id: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  checked_in: boolean;
-  check_in_time: string | null;
-  created_at: string;
-  updated_at: string;
-};
+import SlideToCheckIn from '../../../components/SlideToCheckIn';
+import { Attendee } from '../../../models/Attendee';
 
 export default function CheckInScreen() {
   const theme = useTheme();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string }>();
+  const id = params.id;
   const { getEventById, checkInAttendee } = useEvents();
   
   const [event, setEvent] = useState<any>(null);
@@ -33,8 +22,15 @@ export default function CheckInScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Effect to load event data when id changes
   useEffect(() => {
-    loadEventAndAttendees();
+    if (id) {
+      console.log("Loading event data for ID:", id);
+      loadEventAndAttendees();
+    } else {
+      console.error("No event ID provided");
+      setError("No event ID provided");
+    }
   }, [id]);
 
   // Use Lodash for filtering attendees with better performance and fuzzy matching
@@ -54,7 +50,7 @@ export default function CheckInScreen() {
         const emailMatch = attendee.email ? 
           _.includes(_.toLower(attendee.email), normalizedQuery) : false;
         
-        // Check phone if it exists (don't normalize phone numbers)
+       // Check phone if it exists (don't normalize phone numbers)        
         const phoneMatch = attendee.phone ? 
           _.includes(attendee.phone, searchQuery.trim()) : false;
           
@@ -121,30 +117,29 @@ export default function CheckInScreen() {
 
   const handleToggleCheckIn = async (attendeeId: string) => {
     try {
-      // Find the current attendee to determine the current check-in status
-      const attendee = attendees.find(a => a.id === attendeeId);
+      const attendee = attendees.find((a) => a.id === attendeeId);
       if (!attendee) return;
-      
-      const success = await checkInAttendee(attendeeId);
-      
-      if (success) {
-        // Update the local state with toggled status
-        const newCheckedInStatus = !attendee.checked_in;
-        setAttendees(prevAttendees => 
-          prevAttendees.map(a => 
-            a.id === attendeeId 
-              ? { 
-                  ...a, 
-                  checked_in: newCheckedInStatus, 
-                  check_in_time: newCheckedInStatus ? new Date().toISOString() : null 
-                } 
-              : a
-          )
-        );
-      }
+
+      await checkInAttendee(attendeeId, id);
+      // Optimistically update UI
+      const newCheckedInStatus = !attendee.checked_in;
+      setAttendees((prevAttendees) =>
+        prevAttendees.map((a) =>
+          a.id === attendeeId
+            ? {
+                ...a,
+                checked_in: newCheckedInStatus,
+                check_in_time: newCheckedInStatus
+                  ? new Date().toISOString()
+                  : null,
+              }
+            : a
+        )
+      );
     } catch (error) {
       console.error('Error toggling check-in status:', error);
       Alert.alert('Error', 'Failed to update check-in status');
+      loadEventAndAttendees(false); // Re-fetch to correct optimistic update
     }
   };
 
@@ -155,55 +150,25 @@ export default function CheckInScreen() {
 
   const handleScanQR = () => {
     // Navigate to QR scanner screen
-    router.push(`/event/scan-qr/${id}`);
+    router.push(`/event/scan/${id}`);
   };
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
-        <StatusBar barStyle="dark-content" backgroundColor={theme.colors.backgroundPrimary} />
-        <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary }]}>
-          <TouchableOpacity 
-            style={styles.backButton} 
-            onPress={() => router.back()}
-          >
-            <CaretLeft size={24} color={theme.colors.primary} weight="regular" />
-          </TouchableOpacity>
-          <Text style={{ fontSize: 18, fontWeight: 'bold', color: theme.colors.textPrimary }}>Check-In</Text>
-          <View style={{ width: 40 }} />
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
+      <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
 
+
   if (error || !event) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
-        <StatusBar barStyle="dark-content" backgroundColor={theme.colors.backgroundPrimary} />
-        <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary }]}>
-          <TouchableOpacity 
-            style={styles.backButton} 
-            onPress={() => router.back()}
-          >
-            <CaretLeft size={24} color={theme.colors.primary} weight="regular" />
-          </TouchableOpacity>
-          <Text style={{ fontSize: 18, fontWeight: 'bold', color: theme.colors.textPrimary }}>Check-In</Text>
-          <View style={{ width: 40 }} />
-        </View>
-        <View style={styles.errorContainer}>
-          <Text style={[styles.errorText, { color: theme.colors.error }]}>
-            {error || 'Event not found'}
-          </Text>
-          <TouchableOpacity 
-            style={[styles.retryButton, { backgroundColor: theme.colors.primary }]}
-            onPress={() => loadEventAndAttendees()}
-          >
-            <Text style={[styles.retryButtonText, { color: 'white' }]}>Retry</Text>
-          </TouchableOpacity>
-        </View>
+      <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={[styles.errorText, { color: theme.colors.error }]}>{error || 'Event not found'}</Text>
+        <TouchableOpacity style={[styles.retryButton, {backgroundColor: theme.colors.primary}]} onPress={() => loadEventAndAttendees()}>
+          <Text style={{color: 'white', fontWeight: 'bold'}}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -222,12 +187,13 @@ export default function CheckInScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <View style={styles.eventInfoContainer}>
+      <View style={styles.contentContainer}>
+        {/* Event Card */}
         <View style={[styles.eventInfoCard, { backgroundColor: theme.colors.backgroundPrimary }]}>
           <View style={styles.eventInfoHeader}>
-            <Text style={[styles.eventName, { color: theme.colors.textPrimary }]}>{event.title}</Text>
-            <View style={[styles.eventStatsBadge, { backgroundColor: `${theme.colors.primary}15` }]}>
-              <Users size={14} color={theme.colors.primary} weight="bold" />
+            <Text style={[styles.eventName, { color: theme.colors.textPrimary }]} numberOfLines={1}>{event.title}</Text>
+            <View style={[styles.eventStatsBadge, { backgroundColor: `${theme.colors.primary}20` }]}>
+              <Users size={16} color={theme.colors.primary} weight="bold" />
               <Text style={[styles.eventStats, { color: theme.colors.primary }]}>
                 {attendees.filter(a => a.checked_in).length} / {attendees.length}
               </Text>
@@ -237,11 +203,10 @@ export default function CheckInScreen() {
             {event.date ? new Date(event.date).toLocaleDateString() : ''}
           </Text>
         </View>
-      </View>
 
-      <View style={styles.searchContainer}>
+        {/* Search Bar */}
         <View style={[styles.searchInputContainer, { backgroundColor: theme.colors.backgroundPrimary }]}>
-          <MagnifyingGlass size={20} color={theme.colors.textSecondary} weight="regular" style={styles.searchIcon} />
+          <MagnifyingGlass size={22} color={theme.colors.textSecondary} weight="regular" style={styles.searchIcon} />
           <TextInput
             style={[styles.searchInput, { color: theme.colors.textPrimary }]}
             placeholder="Search attendees..."
@@ -250,28 +215,25 @@ export default function CheckInScreen() {
             onChangeText={setSearchQuery}
           />
         </View>
-      </View>
 
-      <View style={styles.actionButtonsContainer}>
-        <TouchableOpacity 
-          style={[styles.actionButton, { backgroundColor: theme.colors.backgroundPrimary }]}
-          onPress={handleScanQR}
-        >
-          <View style={[styles.actionIconContainer, { backgroundColor: `${theme.colors.primary}15` }]}>
-            <QrCode size={24} color={theme.colors.primary} weight="bold" />
-          </View>
-          <Text style={[styles.actionButtonText, { color: theme.colors.textPrimary }]}>Scan QR</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.actionButton, { backgroundColor: theme.colors.backgroundPrimary }]}
-          onPress={handleAddAttendee}
-        >
-          <View style={[styles.actionIconContainer, { backgroundColor: `${theme.colors.primary}15` }]}>
-            <UserCirclePlus size={24} color={theme.colors.primary} weight="bold" />
-          </View>
-          <Text style={[styles.actionButtonText, { color: theme.colors.textPrimary }]}>Add Attendee</Text>
-        </TouchableOpacity>
+        {/* Action Buttons */}
+        <View style={styles.actionButtonsContainer}>
+          <TouchableOpacity 
+            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+            onPress={handleScanQR}
+          >
+            <QrCode size={22} color="white" weight="bold" style={styles.actionButtonIcon} />
+            <Text style={[styles.actionButtonText, { color: "white" }]}>Scan QR</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.actionButton, { backgroundColor: theme.colors.backgroundPrimary, borderColor: theme.colors.border, borderWidth: 1 }]}
+            onPress={handleAddAttendee}
+          >
+            <UserCirclePlus size={22} color={theme.colors.primary} weight="bold" style={styles.actionButtonIcon} />
+            <Text style={[styles.actionButtonText, { color: theme.colors.textPrimary }]}>Add Attendee</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <FlatList
@@ -288,6 +250,11 @@ export default function CheckInScreen() {
           />
         }
         renderItem={({ item }) => (
+          <SlideToCheckIn
+            attendee={item}
+            onCheckIn={() => handleToggleCheckIn(item.id)}
+            onUncheckIn={() => handleToggleCheckIn(item.id)}
+          />
           <View style={[styles.attendeeCard, { backgroundColor: theme.colors.backgroundPrimary }]}>
             <View style={styles.attendeeInfo}>
               <Text style={[styles.attendeeName, { color: theme.colors.textPrimary }]}>{item.name}</Text>
@@ -336,10 +303,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
   },
   backButton: {
@@ -348,42 +317,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  retryButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  eventInfoContainer: {
+  contentContainer: {
     padding: 16,
+    gap: 16,
   },
   eventInfoCard: {
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
@@ -391,79 +335,65 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
   },
   eventName: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
-    flex: 1,
+    flexShrink: 1,
   },
   eventStatsBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 16,
+    marginLeft: 8,
   },
   eventStats: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: 'bold',
     marginLeft: 6,
   },
   eventDate: {
     fontSize: 14,
   },
-  searchContainer: {
-    padding: 16,
-  },
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    paddingHorizontal: 16,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 12,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
-    paddingVertical: 8,
+    fontSize: 18,
+    paddingVertical: 14,
   },
   actionButtonsContainer: {
     flexDirection: 'row',
-    padding: 16,
     gap: 12,
   },
   actionButton: {
     flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    paddingVertical: 18,
     borderRadius: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  actionIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
+  actionButtonIcon: {
+    marginRight: 10,
   },
   actionButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   attendeeList: {
     padding: 16,
@@ -495,30 +425,38 @@ const styles = StyleSheet.create({
   checkedInBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 16,
   },
+  checkedInIcon: {
+    marginRight: 4,
+  },
   checkedInText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
   },
   checkInButton: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  checkInButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
   },
   emptyContainer: {
-    padding: 20,
+    padding: 24,
     alignItems: 'center',
+    marginTop: 40,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 18,
     textAlign: 'center',
+    color: '#888',
   },
+  errorText: {
+    fontSize: 18,
+    textAlign: 'center',
+    marginBottom: 20
+  },
+  retryButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 8
+  }
 });
