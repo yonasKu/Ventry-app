@@ -160,13 +160,11 @@ const ThemeContext = createContext<Theme | undefined>(undefined);
 // Theme provider component
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const colorScheme = useColorScheme();
-  // Force light mode for testing
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(colorScheme === 'dark');
 
   // Update theme when system theme changes
   useEffect(() => {
-    // Uncomment this line to re-enable system theme
-    // setIsDark(colorScheme === 'dark');
+    setIsDark(colorScheme === 'dark');
   }, [colorScheme]);
 
   // Construct the theme object

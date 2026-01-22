@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, TextInput, FlatList, RefreshControl, ActivityIndicator, Alert, StatusBar } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, TextInput, FlatList, RefreshControl, ActivityIndicator, Alert, StatusBar, Keyboard, TouchableWithoutFeedback } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { CaretLeft, MagnifyingGlass, CheckCircle, UserCirclePlus, QrCode, Users } from 'phosphor-react-native';
+import { CaretLeft, MagnifyingGlass, UserCirclePlus, QrCode, Users } from 'phosphor-react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { useEvents } from '../../../context/EventContext';
 import { Attendee as DatabaseAttendee } from '../../../services/DatabaseService';
@@ -277,6 +277,8 @@ export default function CheckInScreen() {
       <FlatList
         data={filteredAttendees}
         keyExtractor={(item) => item.id}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -305,10 +307,7 @@ export default function CheckInScreen() {
               }
             >
               {item.checked_in ? (
-                <>
-                  <CheckCircle size={16} color={theme.colors.success} weight="bold" style={styles.checkedInIcon} />
-                  <Text style={[styles.checkedInText, { color: theme.colors.success }]}>Tap to Uncheck</Text>
-                </>
+                <Text style={[styles.checkedInText, { color: theme.colors.success }]}>✓ Checked In</Text>
               ) : (
                 <Text style={styles.checkInButtonText}>Check In</Text>
               )}
@@ -496,15 +495,12 @@ const styles = StyleSheet.create({
   checkedInBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 16,
   },
-  checkedInIcon: {
-    marginRight: 4,
-  },
   checkedInText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
   },
   checkInButton: {

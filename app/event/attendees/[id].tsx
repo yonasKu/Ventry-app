@@ -370,6 +370,8 @@ export default function ManageAttendeesScreen() {
       <FlatList
         data={filteredAttendees}
         keyExtractor={(item) => item.id}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

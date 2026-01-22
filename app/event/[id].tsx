@@ -24,6 +24,8 @@ import {
   MapPin,
   Users,
   NotePencil,
+  FileArrowDown,
+  Scan,
 } from "phosphor-react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { useEvents } from "../../context/EventContext";
@@ -485,6 +487,64 @@ export default function EventDetailScreen() {
                 ]}
               >
                 QR Code
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.actionButtonCard,
+                { backgroundColor: theme.colors.backgroundPrimary },
+              ]}
+              onPress={() => router.push(`/event/scan-qr/${id}`)}
+            >
+              <View
+                style={[
+                  styles.actionIconContainer,
+                  { backgroundColor: `${theme.colors.accent}15` },
+                ]}
+              >
+                <Scan
+                  size={24}
+                  color={theme.colors.accent}
+                  weight="fill"
+                />
+              </View>
+              <Text
+                style={[
+                  styles.actionButtonLabel,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                Scan QR
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.actionButtonCard,
+                { backgroundColor: theme.colors.backgroundPrimary },
+              ]}
+              onPress={() => router.push(`/event/export/${id}`)}
+            >
+              <View
+                style={[
+                  styles.actionIconContainer,
+                  { backgroundColor: `${theme.colors.success}15` },
+                ]}
+              >
+                <FileArrowDown
+                  size={24}
+                  color={theme.colors.success}
+                  weight="fill"
+                />
+              </View>
+              <Text
+                style={[
+                  styles.actionButtonLabel,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                Export
               </Text>
             </TouchableOpacity>
 
