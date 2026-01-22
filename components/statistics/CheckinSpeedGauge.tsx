@@ -24,7 +24,7 @@ const CheckinSpeedGauge: React.FC<CheckinSpeedGaugeProps> = ({ value, label, uni
   if (!value || value <= 0) {
     return (
       <Animated.View style={[styles.card, { backgroundColor: theme.colors.backgroundPrimary, borderRadius: theme.borderRadius.lg, ...theme.shadows.md }]}>
-        <Text style={[theme.typography.heading3, { color: theme.colors.textPrimary, textAlign: 'center' }]}>{label}</Text>
+        <Text style={[theme.typography.heading2, { color: theme.colors.textPrimary, textAlign: 'center' }]}>{label}</Text>
         <View style={styles.emptyContainer}>
           <Gauge size={48} color={theme.colors.textTertiary} weight="light" />
           <Text style={[theme.typography.body, { color: theme.colors.textSecondary, marginTop: theme.spacing.md }]}>No data</Text>
@@ -38,7 +38,7 @@ const CheckinSpeedGauge: React.FC<CheckinSpeedGaugeProps> = ({ value, label, uni
       style={[styles.card, { backgroundColor: theme.colors.backgroundPrimary, borderRadius: theme.borderRadius.lg, ...theme.shadows.md }]}
       entering={FadeInDown.delay(200)}
     >
-      <Text style={[theme.typography.heading3, { color: theme.colors.textPrimary, textAlign: 'center' }]}>{label}</Text>
+      <Text style={[theme.typography.heading2, { color: theme.colors.textPrimary, textAlign: 'center' }]}>{label}</Text>
       <View style={styles.chartContainer}>
         <VictoryPie
           data={data}

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, TextInput, Alert, StatusBar, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { CaretLeft, UserCirclePlus, Envelope, Phone } from 'phosphor-react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { useEvents } from '../../../context/EventContext';
+import { CustomFieldsService, CustomField, FieldType } from '../../../services/CustomFieldsService';
 
 export default function AddAttendeeScreen() {
   const theme = useTheme();
@@ -13,8 +14,33 @@ export default function AddAttendeeScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+
+  useEffect(() => {
+    loadCustomFields();
+  }, [id]);
+
+  const loadCustomFields = async () => {
+    try {
+      const service = new CustomFieldsService();
+      const fields = service.getFields(id);
+      setCustomFields(fields);
+      
+      // Initialize custom field values with defaults
+      const initialValues: Record<string, string> = {};
+      fields.forEach(field => {
+        if (field.default_value) {
+          initialValues[field.id] = field.default_value;
+        }
+      });
+      setCustomFieldValues(initialValues);
+    } catch (error) {
+      console.error('Error loading custom fields:', error);
+    }
+  };
 
   const handleAddAttendee = async () => {
     // Validate input
@@ -29,7 +55,15 @@ export default function AddAttendeeScreen() {
       validationErrors.email = 'Please enter a valid email address';
     }
     
-    // Phone is optional, no validation needed
+    // Validate custom fields
+    const service = new CustomFieldsService();
+    customFields.forEach(field => {
+      const value = customFieldValues[field.id] || '';
+      const result = service.validateFieldValue(field, value);
+      if (!result.valid) {
+        validationErrors[`custom_${field.id}`] = result.error || 'Invalid value';
+      }
+    });
     
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -41,10 +75,17 @@ export default function AddAttendeeScreen() {
     
     try {
       // Add the attendee to the database with all required fields
-      await addAttendee(id as string, {
+      const newAttendee = await addAttendee(id as string, {
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim()
+      });
+      
+      // Save custom field values
+      Object.entries(customFieldValues).forEach(([fieldId, value]) => {
+        if (value) {
+          service.setFieldValue(newAttendee.id, fieldId, value);
+        }
       });
       
       // Show success message
@@ -59,7 +100,9 @@ export default function AddAttendeeScreen() {
               setName('');
               setEmail('');
               setPhone('');
+              setCustomFieldValues({});
               setErrors({});
+              loadCustomFields(); // Reload to get defaults
             }
           },
           { 
@@ -76,6 +119,137 @@ export default function AddAttendeeScreen() {
       setErrors({ general: err instanceof Error ? err.message : 'Failed to add attendee' });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const renderCustomField = (field: CustomField) => {
+    const value = customFieldValues[field.id] || '';
+    const error = errors[`custom_${field.id}`];
+
+    switch (field.type) {
+      case 'text':
+      case 'email':
+      case 'phone':
+      case 'url':
+        return (
+          <View key={field.id} style={styles.fieldContainer}>
+            <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
+              {field.name} {field.required && '*'}
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                { 
+                  backgroundColor: theme.colors.surface,
+                  color: theme.colors.textPrimary,
+                  borderColor: error ? theme.colors.error : theme.colors.border
+                }
+              ]}
+              placeholder={`Enter ${field.name.toLowerCase()}`}
+              placeholderTextColor={theme.colors.textSecondary}
+              value={value}
+              onChangeText={(text) => setCustomFieldValues({ ...customFieldValues, [field.id]: text })}
+              keyboardType={field.type === 'email' ? 'email-address' : field.type === 'phone' ? 'phone-pad' : field.type === 'url' ? 'url' : 'default'}
+              autoCapitalize={field.type === 'email' || field.type === 'url' ? 'none' : 'sentences'}
+            />
+            {error && (
+              <Text style={[styles.errorText, { color: theme.colors.error }]}>
+                {error}
+              </Text>
+            )}
+          </View>
+        );
+
+      case 'textarea':
+        return (
+          <View key={field.id} style={styles.fieldContainer}>
+            <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
+              {field.name} {field.required && '*'}
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                styles.textArea,
+                { 
+                  backgroundColor: theme.colors.surface,
+                  color: theme.colors.textPrimary,
+                  borderColor: error ? theme.colors.error : theme.colors.border
+                }
+              ]}
+              placeholder={`Enter ${field.name.toLowerCase()}`}
+              placeholderTextColor={theme.colors.textSecondary}
+              value={value}
+              onChangeText={(text) => setCustomFieldValues({ ...customFieldValues, [field.id]: text })}
+              multiline
+              numberOfLines={4}
+            />
+            {error && (
+              <Text style={[styles.errorText, { color: theme.colors.error }]}>
+                {error}
+              </Text>
+            )}
+          </View>
+        );
+
+      case 'number':
+        return (
+          <View key={field.id} style={styles.fieldContainer}>
+            <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
+              {field.name} {field.required && '*'}
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                { 
+                  backgroundColor: theme.colors.surface,
+                  color: theme.colors.textPrimary,
+                  borderColor: error ? theme.colors.error : theme.colors.border
+                }
+              ]}
+              placeholder={`Enter ${field.name.toLowerCase()}`}
+              placeholderTextColor={theme.colors.textSecondary}
+              value={value}
+              onChangeText={(text) => setCustomFieldValues({ ...customFieldValues, [field.id]: text })}
+              keyboardType="numeric"
+            />
+            {error && (
+              <Text style={[styles.errorText, { color: theme.colors.error }]}>
+                {error}
+              </Text>
+            )}
+          </View>
+        );
+
+      case 'checkbox':
+        return (
+          <View key={field.id} style={styles.checkboxContainer}>
+            <TouchableOpacity
+              style={styles.checkbox}
+              onPress={() => setCustomFieldValues({ ...customFieldValues, [field.id]: value === 'true' ? 'false' : 'true' })}
+            >
+              <View style={[
+                styles.checkboxBox,
+                { borderColor: theme.colors.border },
+                value === 'true' && { backgroundColor: theme.colors.primary }
+              ]}>
+                {value === 'true' && (
+                  <Text style={styles.checkboxCheck}>✓</Text>
+                )}
+              </View>
+              <Text style={[styles.checkboxLabel, { color: theme.colors.textPrimary }]}>
+                {field.name} {field.required && '*'}
+              </Text>
+            </TouchableOpacity>
+            {error && (
+              <Text style={[styles.errorText, { color: theme.colors.error }]}>
+                {error}
+              </Text>
+            )}
+          </View>
+        );
+
+      default:
+        return null;
     }
   };
 
@@ -107,6 +281,9 @@ export default function AddAttendeeScreen() {
             <View style={styles.iconContainer}>
               <UserCirclePlus size={64} color={theme.colors.primary} weight="light" />
             </View>
+            
+            {/* Basic Information Section */}
+            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Basic Information</Text>
             
             {/* Name Field */}
             <Text style={[styles.label, { color: theme.colors.textPrimary }]}>Attendee Name *</Text>
@@ -186,7 +363,6 @@ export default function AddAttendeeScreen() {
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
                   returnKeyType="done"
-                  onSubmitEditing={handleAddAttendee}
                 />
                 {errors.phone && (
                   <Text style={[styles.errorText, { color: theme.colors.error }]}>
@@ -195,6 +371,16 @@ export default function AddAttendeeScreen() {
                 )}
               </View>
             </View>
+            
+            {/* Custom Fields Section */}
+            {customFields.length > 0 && (
+              <>
+                <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary, marginTop: 24 }]}>
+                  Additional Information
+                </Text>
+                {customFields.map(renderCustomField)}
+              </>
+            )}
             
             {errors.general && (
               <Text style={[styles.errorText, { color: theme.colors.error, textAlign: 'center', marginTop: 8 }]}>
@@ -262,6 +448,12 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     marginTop: 8,
   },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
+    marginTop: 8,
+  },
   fieldContainer: {
     flexDirection: 'row',
     marginBottom: 8,
@@ -287,6 +479,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 16,
     marginBottom: 8,
+  },
+  textArea: {
+    height: 100,
+    paddingTop: 12,
+    textAlignVertical: 'top',
+  },
+  checkboxContainer: {
+    marginBottom: 16,
+  },
+  checkbox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkboxBox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderRadius: 4,
+    marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxCheck: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  checkboxLabel: {
+    fontSize: 16,
+    fontWeight: '500',
   },
   errorText: {
     fontSize: 14,

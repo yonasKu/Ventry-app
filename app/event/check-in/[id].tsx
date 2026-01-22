@@ -255,31 +255,6 @@ export default function CheckInScreen() {
             onCheckIn={() => handleToggleCheckIn(item.id)}
             onUncheckIn={() => handleToggleCheckIn(item.id)}
           />
-          <View style={[styles.attendeeCard, { backgroundColor: theme.colors.backgroundPrimary }]}>
-            <View style={styles.attendeeInfo}>
-              <Text style={[styles.attendeeName, { color: theme.colors.textPrimary }]}>{item.name}</Text>
-              {item.email && (
-                <Text style={[styles.attendeeEmail, { color: theme.colors.textSecondary }]}>{item.email}</Text>
-              )}
-            </View>
-            <TouchableOpacity 
-              onPress={() => handleToggleCheckIn(item.id)}
-              style={item.checked_in ? 
-                [styles.checkedInBadge, { 
-                  backgroundColor: theme.colors.success + '15',
-                  borderWidth: 1,
-                  borderColor: theme.colors.success + '30'
-                }] : 
-                [styles.checkInButton, { backgroundColor: theme.colors.primary }]
-              }
-            >
-              {item.checked_in ? (
-                <Text style={[styles.checkedInText, { color: theme.colors.success }]}>✓ Checked In</Text>
-              ) : (
-                <Text style={styles.checkInButtonText}>Check In</Text>
-              )}
-            </TouchableOpacity>
-          </View>
         )}
         contentContainerStyle={styles.attendeeList}
         ListEmptyComponent={

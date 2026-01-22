@@ -30,6 +30,7 @@ import CheckinActivityHeatMap from '@/components/statistics/CheckinActivityHeatM
 import CheckinSpeedGauge from '@/components/statistics/CheckinSpeedGauge';
 import EventCompletionBars from '@/components/statistics/EventCompletionBars';
 import CheckinRateTrendChart from '@/components/statistics/CheckinRateTrendChart';
+import ReportingService from '@/services/ReportingService';
 
 const { width } = Dimensions.get('window');
 
@@ -118,16 +119,12 @@ export default function StatsScreen() {
     });
   }, [events, timeFilter]);
 
-  // Calculate key stats
+  // Calculate key stats using ReportingService
   const stats = useMemo(() => {
-    const totalEvents = filteredEvents.length;
-    const totalAttendees = filteredEvents.reduce((sum, e) => sum + (e.attendees_count || 0), 0);
-    const totalCheckedIn = filteredEvents.reduce((sum, e) => sum + (e.checked_in_count || 0), 0);
-    const checkInRate = totalAttendees > 0 ? ((totalCheckedIn / totalAttendees) * 100).toFixed(1) : '0';
+    const overallStats = ReportingService.getOverallStats();
     
     // Calculate vs previous period
     const previousPeriodEvents = events.filter(event => {
-      // Parse the date string to a Date object
       const eventDate = parseISO(event.date);
       switch (timeFilter) {
         case 'week': return differenceInDays(new Date(), eventDate) > 7 && differenceInDays(new Date(), eventDate) <= 14;
@@ -139,16 +136,12 @@ export default function StatsScreen() {
     });
     
     const eventsGrowth = previousPeriodEvents.length > 0 
-      ? ((totalEvents - previousPeriodEvents.length) / previousPeriodEvents.length * 100).toFixed(1)
+      ? ((filteredEvents.length - previousPeriodEvents.length) / previousPeriodEvents.length * 100).toFixed(1)
       : '0';
       
     const eventsGrowthPositive = Number(eventsGrowth) >= 0;
     
-    // Additional stats
-    const avgAttendeesPerEvent = totalEvents > 0 ? Math.round(totalAttendees / totalEvents) : 0;
-    const activeEvents = events.filter(e => isFuture(parseISO(e.date))).length;
-    
-    // Find most recent event
+    // Find most recent and popular events
     const recentEvents = [...filteredEvents].sort((a, b) => 
       parseISO(b.date).getTime() - parseISO(a.date).getTime()
     );
@@ -159,32 +152,37 @@ export default function StatsScreen() {
     )[0];
     
     return { 
-      totalEvents, 
-      totalAttendees, 
-      totalCheckedIn, 
-      checkInRate,
+      totalEvents: filteredEvents.length,
+      totalAttendees: filteredEvents.reduce((sum, e) => sum + (e.attendees_count || 0), 0),
+      totalCheckedIn: filteredEvents.reduce((sum, e) => sum + (e.checked_in_count || 0), 0),
+      checkInRate: filteredEvents.length > 0 
+        ? ((filteredEvents.reduce((sum, e) => sum + (e.checked_in_count || 0), 0) / 
+            filteredEvents.reduce((sum, e) => sum + (e.attendees_count || 0), 0)) * 100).toFixed(1)
+        : '0',
       eventsGrowth,
       eventsGrowthPositive,
-      avgAttendeesPerEvent,
+      avgAttendeesPerEvent: overallStats.averageAttendance,
       mostRecentEvent,
       mostPopularEvent,
-      activeEvents,
+      activeEvents: overallStats.upcomingEvents,
     };
   }, [filteredEvents, events, timeFilter]);
 
-  // Format event data for charts
+  // Format event data for charts using ReportingService
   const chartData = useMemo(() => {
     const sortedEvents = [...filteredEvents].sort(
       (a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()
     );
 
-    // Data for AttendanceTrendChart
-    let trendData = sortedEvents.map(event => ({
-      x: parseISO(event.date),
-      y: event.attendees_count || 0,
+    // Data for AttendanceTrendChart - use ReportingService
+    const days = timeFilter === 'week' ? 7 : timeFilter === 'month' ? 30 : timeFilter === 'year' ? 365 : 90;
+    const attendanceTrends = ReportingService.getAttendanceTrends(days);
+    let trendData = attendanceTrends.map((trend: { date: string; attendees: number }) => ({
+      x: parseISO(trend.date),
+      y: trend.attendees,
     }));
 
-    // If there isn't enough data for a trend line, use sample data.
+    // Fallback to sample data if not enough
     if (trendData.length < 2) {
       trendData = [
         { x: new Date('2023-01-15'), y: 120 },
@@ -204,44 +202,25 @@ export default function StatsScreen() {
       checkInRate: event.attendees_count ? ((event.checked_in_count || 0) / event.attendees_count * 100).toFixed(0) : '0'
     }));
 
-    // Data for CheckInChart, with fallback to sample data
-    let pieData;
-    let pieStats;
-    if (stats.totalAttendees > 0) {
-      pieData = [
-        { x: "Checked In", y: stats.totalCheckedIn, color: theme.colors.primary },
-        { x: "Not Checked In", y: stats.totalAttendees - stats.totalCheckedIn, color: theme.colors.border || '#e0e0e0' }
-      ];
-      pieStats = {
-        totalAttendees: stats.totalAttendees,
-        checkInRate: stats.checkInRate,
-      };
-    } else {
-      // Use sample data if no real data is available
-      pieData = [
-        { x: "Checked In", y: 85, color: theme.colors.primary },
-        { x: "Not Checked In", y: 15, color: theme.colors.border || '#e0e0e0' }
-      ];
-      pieStats = {
-        totalAttendees: 100,
-        checkInRate: '85.0',
-      };
-    }
-    
-    // Data for EventDistributionChart
-    const distributionData = [
-      { x: 'Meetups', y: 42 },
-      { x: 'Workshops', y: 28 },
-      { x: 'Conferences', y: 19 },
-      { x: 'Webinars', y: 15 },
-      { x: 'Team Building', y: 12 },
-      { x: 'Product Launches', y: 9 },
-      { x: 'Networking', y: 7 },
-      { x: 'Seminars', y: 5 },
-      { x: 'Trade Shows', y: 3 },
+    // Data for CheckInChart - use ReportingService
+    const attendeeTypeDistribution = ReportingService.getAttendeeTypeDistribution();
+    const pieData = [
+      { x: "Checked In", y: attendeeTypeDistribution[0].count, color: theme.colors.primary },
+      { x: "Not Checked In", y: attendeeTypeDistribution[1].count, color: theme.colors.border || '#e0e0e0' }
     ];
+    const pieStats = {
+      totalAttendees: attendeeTypeDistribution[0].count + attendeeTypeDistribution[1].count,
+      checkInRate: attendeeTypeDistribution[0].percentage.toFixed(1),
+    };
     
-    // Placeholder data for AttendeeTypeChart
+    // Data for EventDistributionChart - use ReportingService
+    const eventDistribution = ReportingService.getEventDistribution();
+    const distributionData = eventDistribution.map((dist: { label: string; value: number }) => ({
+      x: dist.label,
+      y: dist.value,
+    }));
+    
+    // Placeholder data for AttendeeTypeChart (not yet in ReportingService)
     const attendeeTypeData = [
       { event: 'Community Meetup', new: 35, returning: 65 },
       { event: 'Tech Conference', new: 120, returning: 280 },
@@ -251,30 +230,31 @@ export default function StatsScreen() {
       { event: 'Music Festival', new: 250, returning: 450 },
     ];
     
-    // Placeholder data for CheckinSpeedGauge
-    let checkinSpeed = stats.totalCheckedIn > 0 ? 25 + Math.floor(stats.totalCheckedIn % 10) : 0;
-    if (checkinSpeed === 0) {
-      checkinSpeed = 34; // Fallback to a default sample value if no real data is available
+    // Calculate check-in speed from real data
+    let checkinSpeed = stats.totalCheckedIn > 0 ? Math.min(Math.round(stats.totalCheckedIn / filteredEvents.length), 100) : 0;
+    if (checkinSpeed === 0 && filteredEvents.length === 0) {
+      checkinSpeed = 34; // Fallback
     }
 
     // Placeholder data for CheckinActivityHeatMap
     const heatMapData = Array.from({ length: 7 }, () => 
       Array.from({ length: 24 }, () => Math.floor(Math.random() * 25))
     );
-    // Simulate a peak event time
-    for (let i = 18; i < 21; i++) { // 6pm to 9pm
-      heatMapData[5][i] = 50 + Math.floor(Math.random() * 50); // Friday
-      heatMapData[6][i] = 40 + Math.floor(Math.random() * 40); // Saturday
+    // Simulate peak event times
+    for (let i = 18; i < 21; i++) {
+      heatMapData[5][i] = 50 + Math.floor(Math.random() * 50);
+      heatMapData[6][i] = 40 + Math.floor(Math.random() * 40);
     }
 
-    // Placeholder data for EventCompletionBars
-    const eventCompletionData = filteredEvents.slice(0, 4).map(event => ({
-      name: event.title,
-      checkedIn: event.checked_in_count || 0,
-      total: event.attendees_count || 0,
+    // Data for EventCompletionBars - use real data
+    const topEvents = ReportingService.getTopEvents(4);
+    const eventCompletionData = topEvents.map((event: { eventTitle: string; checkedIn: number; totalAttendees: number }) => ({
+      name: event.eventTitle,
+      checkedIn: event.checkedIn,
+      total: event.totalAttendees,
     }));
     
-    // Use sample data if none is available from the filter
+    // Fallback if no data
     if (eventCompletionData.length === 0) {
       eventCompletionData.push(
         { name: 'Annual Tech Summit', checkedIn: 380, total: 450 },
@@ -283,19 +263,25 @@ export default function StatsScreen() {
       );
     }
 
-    // Placeholder data for CheckinRateTrendChart
-    const checkinRateTrendData = [
-      { x: 0, y: 0 },
-      { x: 10, y: 15 },
-      { x: 20, y: 35 },
-      { x: 30, y: 60 },
-      { x: 45, y: 80 },
-      { x: 60, y: 90 },
-      { x: 90, y: 98 },
-    ];
+    // Data for CheckinRateTrendChart - use ReportingService
+    const checkInRateTrends = ReportingService.getCheckInRateTrends(days);
+    const checkinRateTrendData = checkInRateTrends.length > 0 
+      ? checkInRateTrends.map((trend: { rate: number }, index: number) => ({
+          x: index * 10,
+          y: trend.rate,
+        }))
+      : [
+          { x: 0, y: 0 },
+          { x: 10, y: 15 },
+          { x: 20, y: 35 },
+          { x: 30, y: 60 },
+          { x: 45, y: 80 },
+          { x: 60, y: 90 },
+          { x: 90, y: 98 },
+        ];
 
     return { barData, pieData, pieStats, distributionData, trendData, attendeeTypeData, heatMapData, checkinSpeed, eventCompletionData, checkinRateTrendData };
-  }, [filteredEvents, stats, theme]);
+  }, [filteredEvents, stats, theme, timeFilter]);
 
   // Victory theme customization
   const customTheme = {

@@ -15,6 +15,8 @@ export default function HomeScreen() {
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const { events, loading, error, refreshEvents } = useEvents();
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<DateData | null>(null);
+  const [selectedDateEvents, setSelectedDateEvents] = useState<any[]>([]);
   
   useEffect(() => {
     console.log('HomeScreen mounted, events:', events);
@@ -109,9 +111,6 @@ export default function HomeScreen() {
       return isSameDay(eventDate, new Date(date.dateString));
     });
   };
-
-  const [selectedDate, setSelectedDate] = useState<DateData | null>(null);
-  const [selectedDateEvents, setSelectedDateEvents] = useState<any[]>([]);
 
   const handleDayPress = (day: DateData) => {
     // If selecting the same date again, clear the selection

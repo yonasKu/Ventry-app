@@ -105,8 +105,7 @@ export default function EditEventScreen() {
       const timeString = eventTime.toISOString().split('T')[1].substring(0, 8);
       
       // Update the event in the database
-      await updateEvent({
-        id,
+      await updateEvent(id, {
         title: eventName,
         date: dateString,
         time: timeString,

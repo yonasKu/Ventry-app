@@ -49,10 +49,10 @@ export default function AttendeeDetailsScreen() {
   };
 
   const handleToggleCheckIn = async () => {
-    if (!attendee) return;
+    if (!attendee || !id) return;
     
     try {
-      const success = await checkInAttendee(attendee.id);
+      const success = await checkInAttendee(attendee.id, id);
       if (success) {
         // Update the local state to reflect the toggled status
         const newCheckedInStatus = !attendee.checked_in;

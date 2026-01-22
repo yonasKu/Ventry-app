@@ -114,7 +114,8 @@ export default function ScanQRScreen() {
       }
 
       // Perform check-in
-      const success = await checkInAttendee(attendeeId);
+      if (!eventId || !attendeeId) return;
+      const success = await checkInAttendee(attendeeId, eventId);
       
       if (success) {
         setLastScanResult({
