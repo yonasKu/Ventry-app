@@ -26,10 +26,12 @@ import {
   NotePencil,
   FileArrowDown,
   Scan,
+  FileText,
 } from "phosphor-react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { useEvents } from "../../context/EventContext";
 import { format, parseISO } from "date-fns";
+import ExportPDFButton from "@/components/ExportPDFButton";
 
 export default function EventDetailScreen() {
   const theme = useTheme();
@@ -581,6 +583,44 @@ export default function EventDetailScreen() {
                 ]}
               >
                 Export
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.actionButtonCard,
+                { backgroundColor: theme.colors.backgroundPrimary },
+              ]}
+              onPress={() => {
+                // This will be handled by the ExportPDFButton component
+                // We'll create a simple wrapper here
+                import('@/services/PDFService').then(({ default: PDFService }) => {
+                  PDFService.generateEventReport(id)
+                    .then((filePath) => PDFService.sharePDF(filePath))
+                    .then(() => Alert.alert('Success', 'PDF exported successfully!'))
+                    .catch((error) => Alert.alert('Error', 'Failed to export PDF: ' + error.message));
+                });
+              }}
+            >
+              <View
+                style={[
+                  styles.actionIconContainer,
+                  { backgroundColor: `${theme.colors.error}15` },
+                ]}
+              >
+                <FileText
+                  size={24}
+                  color={theme.colors.error}
+                  weight="fill"
+                />
+              </View>
+              <Text
+                style={[
+                  styles.actionButtonLabel,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                PDF Report
               </Text>
             </TouchableOpacity>
 

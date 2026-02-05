@@ -90,32 +90,10 @@ export const useStatistics = (events: Event[], timeFilter: TimeFilter) => {
   }, [filteredEvents, stats]);
 
   const distributionChartData = useMemo(() => {
-    const distributionData = [
-      { x: 'Meetups', y: 42 }, { x: 'Workshops', y: 28 }, { x: 'Conferences', y: 19 },
-      { x: 'Webinars', y: 15 }, { x: 'Team Building', y: 12 }, { x: 'Product Launches', y: 9 },
-      { x: 'Networking', y: 7 }, { x: 'Seminars', y: 5 }, { x: 'Trade Shows', y: 3 },
-    ];
-    
-    const totalEvents = distributionData.reduce((acc, d) => acc + d.y, 0);
-
-    const accentColors = [
-      theme.colors.accent, '#8B5CF6', '#3B82F6', '#10B981', '#EF4444',
-    ];
-
-    const sortedData = [...distributionData].sort((a, b) => b.y - a.y);
-    const [baseH, baseS, baseL] = hexToHsl(theme.colors.primary);
-    
-    const colorMap = sortedData.reduce((map, item, index) => {
-      if (index < accentColors.length) {
-        map[item.x] = accentColors[index];
-      } else {
-        const hue = (baseH + (index - accentColors.length) * 137.5) % 360;
-        map[item.x] = hslToHex(hue, baseS - 5, baseL + 5);
-      }
-      return map;
-    }, {} as Record<string, string>);
-
-    const colorScale = distributionData.map(item => colorMap[item.x]);
+    // Empty distribution data - feature not yet implemented
+    const distributionData: Array<{ x: string; y: number }> = [];
+    const totalEvents = 0;
+    const colorScale: string[] = [];
 
     return { distributionData, colorScale, totalEvents };
   }, [theme]);

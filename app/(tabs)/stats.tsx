@@ -4,18 +4,13 @@ import {
   View, 
   Text, 
   ScrollView, 
-  TouchableOpacity, 
-  Dimensions, 
   RefreshControl,
   ActivityIndicator 
 } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useEvents } from '@/context/EventContext';
-import { format, parseISO, isThisWeek, isThisMonth, differenceInDays, formatDistance, isFuture } from 'date-fns';
-import { VictoryPie, VictoryBar, VictoryChart, VictoryAxis, VictoryTheme, VictoryLabel } from 'victory-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowUp, ArrowDown, Calendar, Users, CheckCircle, Clock, ChartBar, TrendUp, Trophy } from 'phosphor-react-native';
-import Animated, { FadeInDown, FadeInRight, Layout } from 'react-native-reanimated';
+import { parseISO, isThisWeek, isThisMonth, differenceInDays } from 'date-fns';
+import { VictoryTheme } from 'victory-native';
 import StatsHeader from '@/components/statistics/StatsHeader';
 import TimeFilterComponent from '@/components/statistics/TimeFilter';
 import EventDistributionChart from '@/components/statistics/EventDistributionChart';
@@ -31,64 +26,7 @@ import CheckinSpeedGauge from '@/components/statistics/CheckinSpeedGauge';
 import EventCompletionBars from '@/components/statistics/EventCompletionBars';
 import CheckinRateTrendChart from '@/components/statistics/CheckinRateTrendChart';
 import ReportingService from '@/services/ReportingService';
-
-const { width } = Dimensions.get('window');
-
-// --- Color Utility Functions ---
-// Converts a hex color to an HSL array
-function hexToHsl(hex: string): [number, number, number] {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!result) return [0, 0, 0];
-  let r = parseInt(result[1], 16) / 255;
-  let g = parseInt(result[2], 16) / 255;
-  let b = parseInt(result[3], 16) / 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h = 0, s = 0, l = (max + min) / 2;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-      case g: h = (b - r) / d + 2; break;
-      case b: h = (r - g) / d + 4; break;
-    }
-    h /= 6;
-  }
-  return [h * 360, s * 100, l * 100];
-}
-
-// Converts an HSL color to a hex string
-function hslToHex(h: number, s: number, l: number): string {
-  s /= 100;
-  l /= 100;
-  const c = (1 - Math.abs(2 * l - 1)) * s;
-  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
-  const m = l - c / 2;
-  let r = 0, g = 0, b = 0;
-  if (0 <= h && h < 60) { [r, g, b] = [c, x, 0]; }
-  else if (60 <= h && h < 120) { [r, g, b] = [x, c, 0]; }
-  else if (120 <= h && h < 180) { [r, g, b] = [0, c, x]; }
-  else if (180 <= h && h < 240) { [r, g, b] = [0, x, c]; }
-  else if (240 <= h && h < 300) { [r, g, b] = [x, 0, c]; }
-  else if (300 <= h && h < 360) { [r, g, b] = [c, 0, x]; }
-  const toHex = (c: number) => ('0' + Math.round((c + m) * 255).toString(16)).slice(-2);
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-}
-
-// Generates a vibrant, dynamic color scale
-function generateColorScale(baseColor: string, count: number): string[] {
-  const scale: string[] = [];
-  const [baseH, baseS, baseL] = hexToHsl(baseColor);
-  for (let i = 0; i < count; i++) {
-    // Rotate hue by the golden angle for pleasing distribution
-    const hue = (baseH + i * 137.5) % 360;
-    // Vary saturation and lightness slightly for more dynamism
-    const saturation = baseS - (i % 3) * 5;
-    const lightness = baseL + (i % 4) * 5;
-    scale.push(hslToHex(hue, Math.max(40, saturation), Math.min(70, lightness)));
-  }
-  return scale;
-}
+import ExportPDFButton from '@/components/ExportPDFButton';
 
 type TimeFilter = 'week' | 'month' | 'year' | 'all';
 
@@ -177,21 +115,10 @@ export default function StatsScreen() {
     // Data for AttendanceTrendChart - use ReportingService
     const days = timeFilter === 'week' ? 7 : timeFilter === 'month' ? 30 : timeFilter === 'year' ? 365 : 90;
     const attendanceTrends = ReportingService.getAttendanceTrends(days);
-    let trendData = attendanceTrends.map((trend: { date: string; attendees: number }) => ({
+    const trendData = attendanceTrends.map((trend: { date: string; attendees: number }) => ({
       x: parseISO(trend.date),
       y: trend.attendees,
     }));
-
-    // Fallback to sample data if not enough
-    if (trendData.length < 2) {
-      trendData = [
-        { x: new Date('2023-01-15'), y: 120 },
-        { x: new Date('2023-02-20'), y: 150 },
-        { x: new Date('2023-03-10'), y: 130 },
-        { x: new Date('2023-04-25'), y: 180 },
-        { x: new Date('2023-05-30'), y: 210 },
-      ];
-    }
 
     // Data for EventsBarChart
     const recentEvents = sortedEvents.slice(-6);
@@ -220,65 +147,29 @@ export default function StatsScreen() {
       y: dist.value,
     }));
     
-    // Placeholder data for AttendeeTypeChart (not yet in ReportingService)
-    const attendeeTypeData = [
-      { event: 'Community Meetup', new: 35, returning: 65 },
-      { event: 'Tech Conference', new: 120, returning: 280 },
-      { event: 'Design Workshop', new: 15, returning: 25 },
-      { event: 'Product Launch', new: 80, returning: 120 },
-      { event: 'Charity Gala', new: 50, returning: 150 },
-      { event: 'Music Festival', new: 250, returning: 450 },
-    ];
+    // AttendeeTypeChart data - empty for now (feature not yet implemented)
+    const attendeeTypeData: Array<{ event: string; new: number; returning: number }> = [];
     
     // Calculate check-in speed from real data
-    let checkinSpeed = stats.totalCheckedIn > 0 ? Math.min(Math.round(stats.totalCheckedIn / filteredEvents.length), 100) : 0;
-    if (checkinSpeed === 0 && filteredEvents.length === 0) {
-      checkinSpeed = 34; // Fallback
-    }
+    const checkinSpeed = stats.totalCheckedIn > 0 ? Math.min(Math.round(stats.totalCheckedIn / filteredEvents.length), 100) : 0;
 
-    // Placeholder data for CheckinActivityHeatMap
-    const heatMapData = Array.from({ length: 7 }, () => 
-      Array.from({ length: 24 }, () => Math.floor(Math.random() * 25))
-    );
-    // Simulate peak event times
-    for (let i = 18; i < 21; i++) {
-      heatMapData[5][i] = 50 + Math.floor(Math.random() * 50);
-      heatMapData[6][i] = 40 + Math.floor(Math.random() * 40);
-    }
+    // CheckinActivityHeatMap data - empty for now (feature not yet implemented)
+    const heatMapData: number[][] = [];
 
-    // Data for EventCompletionBars - use real data
+    // Data for EventCompletionBars - use real data only
     const topEvents = ReportingService.getTopEvents(4);
     const eventCompletionData = topEvents.map((event: { eventTitle: string; checkedIn: number; totalAttendees: number }) => ({
       name: event.eventTitle,
       checkedIn: event.checkedIn,
       total: event.totalAttendees,
     }));
-    
-    // Fallback if no data
-    if (eventCompletionData.length === 0) {
-      eventCompletionData.push(
-        { name: 'Annual Tech Summit', checkedIn: 380, total: 450 },
-        { name: 'Marketing Workshop', checkedIn: 45, total: 50 },
-        { name: 'Community Meetup', checkedIn: 88, total: 120 }
-      );
-    }
 
-    // Data for CheckinRateTrendChart - use ReportingService
+    // Data for CheckinRateTrendChart - use ReportingService only
     const checkInRateTrends = ReportingService.getCheckInRateTrends(days);
-    const checkinRateTrendData = checkInRateTrends.length > 0 
-      ? checkInRateTrends.map((trend: { rate: number }, index: number) => ({
-          x: index * 10,
-          y: trend.rate,
-        }))
-      : [
-          { x: 0, y: 0 },
-          { x: 10, y: 15 },
-          { x: 20, y: 35 },
-          { x: 30, y: 60 },
-          { x: 45, y: 80 },
-          { x: 60, y: 90 },
-          { x: 90, y: 98 },
-        ];
+    const checkinRateTrendData = checkInRateTrends.map((trend: { rate: number }, index: number) => ({
+      x: index * 10,
+      y: trend.rate,
+    }));
 
     return { barData, pieData, pieStats, distributionData, trendData, attendeeTypeData, heatMapData, checkinSpeed, eventCompletionData, checkinRateTrendData };
   }, [filteredEvents, stats, theme, timeFilter]);
@@ -327,6 +218,16 @@ export default function StatsScreen() {
       }
     >
       <StatsHeader />
+      
+      {/* Export PDF Button */}
+      <View style={{ marginBottom: theme.spacing.md }}>
+        <ExportPDFButton
+          type="statistics"
+          timeFilter={timeFilter}
+          variant="primary"
+        />
+      </View>
+      
       <TimeFilterComponent timeFilter={timeFilter} setTimeFilter={setTimeFilter} />
       <OverviewSection stats={stats} />
       <EventDistributionChart data={chartData.distributionData} />
@@ -354,7 +255,7 @@ export default function StatsScreen() {
       <CheckinActivityHeatMap data={chartData.heatMapData} />
       <CheckinSpeedGauge value={chartData.checkinSpeed} label="Average Check-in Speed" unit="per minute" />
       <EventCompletionBars events={chartData.eventCompletionData} title="Event Completion Status" />
-      <CheckinRateTrendChart data={chartData.checkinRateTrendData} title="Check-in Rate Over Time (Sample)" />
+      <CheckinRateTrendChart data={chartData.checkinRateTrendData} title="Check-in Rate Over Time" />
     </ScrollView>
   );
 }

@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, TextInput, FlatList, RefreshControl, ActivityIndicator, Alert, StatusBar } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, FlatList, RefreshControl, ActivityIndicator, Alert, StatusBar } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { CaretLeft, MagnifyingGlass, UserCirclePlus, DotsThreeVertical, Trash, PencilSimple, Users, Calendar, CheckCircle, QrCode, Eye, FileArrowDown } from 'phosphor-react-native';
+import { CaretLeft, UserCirclePlus, DotsThreeVertical, Trash, PencilSimple, Users, Calendar, CheckCircle, QrCode, Eye, FileArrowDown } from 'phosphor-react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { useEvents } from '../../../context/EventContext';
 import { Attendee as DatabaseAttendee } from '../../../services/DatabaseService';
+import SearchBar from '../../../components/search/SearchBar';
+import QuickFilterChips from '../../../components/search/QuickFilterChips';
+import RecentSearchDropdown from '../../../components/search/RecentSearchDropdown';
+import SearchService, { FilterType } from '../../../services/SearchService';
 import * as _ from 'lodash';
 
 // Local Attendee type that matches the database Attendee type but with optional fields
@@ -30,12 +34,14 @@ export default function ManageAttendeesScreen() {
   
   const [event, setEvent] = useState<any>(null);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
-  const [filteredAttendees, setFilteredAttendees] = useState<Attendee[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedAttendee, setSelectedAttendee] = useState<string | null>(null);
+  const [recentSearches, setRecentSearches] = useState<any[]>([]);
+  const [showRecentSearches, setShowRecentSearches] = useState(false);
 
   useEffect(() => {
     loadEventAndAttendees();
