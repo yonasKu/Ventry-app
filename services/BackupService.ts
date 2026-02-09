@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import { Paths, File, Directory } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -124,29 +124,25 @@ export class BackupService {
       // Generate filename
       const timestamp = format(new Date(), 'yyyyMMdd_HHmmss');
       const filename = `ventry_backup_${timestamp}.json`;
-      const fileUri = FileSystem.documentDirectory + filename;
+      const file = new File(Paths.document, filename);
       
       // Write backup file
-      await FileSystem.writeAsStringAsync(
-        fileUri,
-        JSON.stringify(backupData, null, 2),
-        { encoding: FileSystem.EncodingType.UTF8 }
-      );
+      await file.write(JSON.stringify(backupData, null, 2));
       
       // Get file info
-      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      const fileSize = file.size;
       
       // Record backup in history
       await this.recordBackup({
         id: timestamp,
         filename,
         created_at: new Date().toISOString(),
-        size: fileInfo.exists ? (fileInfo as any).size : 0,
+        size: fileSize,
         events_count: events.length,
         attendees_count: attendees.length,
       });
       
-      return fileUri;
+      return file.uri;
     } catch (error) {
       console.error('Error creating backup:', error);
       throw error;
@@ -209,9 +205,8 @@ export class BackupService {
   async restoreFromFile(fileUri: string): Promise<RestoreResult> {
     try {
       // Read backup file
-      const content = await FileSystem.readAsStringAsync(fileUri, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
+      const file = new File(fileUri);
+      const content = await file.text();
       
       const backupData: BackupData = JSON.parse(content);
       
@@ -346,9 +341,8 @@ export class BackupService {
    */
   async verifyBackup(fileUri: string): Promise<boolean> {
     try {
-      const content = await FileSystem.readAsStringAsync(fileUri, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
+      const file = new File(fileUri);
+      const content = await file.text();
       
       const backupData: BackupData = JSON.parse(content);
       
@@ -461,26 +455,24 @@ export class BackupService {
    */
   async cleanupOldBackups(daysToKeep: number = 30): Promise<number> {
     try {
-      const directory = FileSystem.documentDirectory;
-      if (!directory) return 0;
-      
-      const files = await FileSystem.readDirectoryAsync(directory);
-      const backupFiles = files.filter(f => f.startsWith('ventry_backup_'));
+      const directory = Paths.document;
+      const files = directory.list();
+      const backupFiles = files.filter(f => f.name.startsWith('ventry_backup_'));
       
       let deletedCount = 0;
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
       
       for (const file of backupFiles) {
-        const fileUri = directory + file;
-        const info = await FileSystem.getInfoAsync(fileUri);
-        
-        if (info.exists && (info as any).modificationTime) {
-          const fileDate = new Date((info as any).modificationTime * 1000);
-          
-          if (fileDate < cutoffDate) {
-            await FileSystem.deleteAsync(fileUri);
-            deletedCount++;
+        if (file instanceof File) {
+          const modTime = file.modificationTime;
+          if (modTime) {
+            const fileDate = new Date(modTime);
+            
+            if (fileDate < cutoffDate) {
+              await file.delete();
+              deletedCount++;
+            }
           }
         }
       }

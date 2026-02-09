@@ -9,6 +9,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import "react-native-reanimated";
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useColorScheme } from "@/components/useColorScheme";
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -74,58 +75,24 @@ function RootLayoutNav() {
   console.log("Color scheme:", colorScheme);
 
   return (
-    <ThemeProvider>
-      <EventProvider>
-        <NavigationThemeProvider
-          value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
-        >
-          <Stack>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-            <Stack.Screen
-              name="create-event"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen name="event/[id]" options={{ headerShown: false }} />
-            <Stack.Screen
-              name="event/edit/[id]"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="event/check-in/[id]"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="event/attendees/[id]"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="event/add-attendee/[id]"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="event/qr/[id]"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="event/import-attendees/[id]"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="event/attendee-details/[id]"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="event/scan/[id]"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="event/attendee-qr/[id]"
-              options={{ headerShown: false }}
-            />
-          </Stack>
-        </NavigationThemeProvider>
-      </EventProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <EventProvider>
+          <NavigationThemeProvider
+            value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
+          >
+            <Stack>
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+              <Stack.Screen
+                name="create-event"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen name="event" options={{ headerShown: false }} />
+            </Stack>
+          </NavigationThemeProvider>
+        </EventProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

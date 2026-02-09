@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import { Paths, File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import Papa from 'papaparse';
 import { Platform, Alert } from 'react-native';
@@ -206,7 +206,7 @@ export class ExportService {
     try {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const batchFileName = `batch_export_${timestamp}.${options.format}`;
-      const batchFilePath = `${FileSystem.documentDirectory}${batchFileName}`;
+      const file = new File(Paths.document, batchFileName);
       
       // Create a simple text-based report with all events
       let batchContent = `Ventry Batch Export\nDate: ${new Date().toLocaleString()}\n\n`;
@@ -237,11 +237,9 @@ export class ExportService {
       }
       
       // Save batch content to file
-      await FileSystem.writeAsStringAsync(batchFilePath, batchContent, {
-        encoding: FileSystem.EncodingType.UTF8
-      });
+      await file.write(batchContent);
       
-      return batchFilePath;
+      return file.uri;
     } catch (error: any) {
       console.error('Error batch exporting events:', error);
       throw new Error(`Failed to batch export events: ${error.message || 'Unknown error'}`);
@@ -266,12 +264,10 @@ export class ExportService {
       const filename = `${sanitizedEventName}_${type}_${timestamp}.json`;
       
       // Save to file
-      const filePath = `${FileSystem.documentDirectory}${filename}`;
-      await FileSystem.writeAsStringAsync(filePath, jsonData, {
-        encoding: FileSystem.EncodingType.UTF8
-      });
+      const file = new File(Paths.document, filename);
+      await file.write(jsonData);
       
-      return filePath;
+      return file.uri;
     } catch (error: any) {
       console.error('Error exporting to JSON:', error);
       throw new Error(`Failed to export to JSON: ${error.message || 'Unknown error'}`);
@@ -285,17 +281,18 @@ export class ExportService {
   private async encryptFile(filePath: string, password: string): Promise<string> {
     try {
       // Read file content
-      const fileContent = await FileSystem.readAsStringAsync(filePath);
+      const file = new File(filePath);
+      const fileContent = await file.text();
       
       // Use a simple encryption method that doesn't depend on external libraries
       // In a real app, you would use a proper encryption library
       const encryptedContent = `ENCRYPTED:${password}\n${fileContent}`;
       
       // Save encrypted content
-      const encryptedPath = `${filePath}.encrypted`;
-      await FileSystem.writeAsStringAsync(encryptedPath, encryptedContent);
+      const encryptedFile = new File(`${filePath}.encrypted`);
+      await encryptedFile.write(encryptedContent);
       
-      return encryptedPath;
+      return encryptedFile.uri;
     } catch (error: any) {
       console.error('Error encrypting file:', error);
       throw new Error(`Failed to encrypt file: ${error.message || 'Unknown error'}`);

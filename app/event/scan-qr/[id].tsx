@@ -5,9 +5,11 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { CaretLeft, CheckCircle, XCircle, Warning } from 'phosphor-react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { useEvents } from '../../../context/EventContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ScanQRScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { id: eventId } = useLocalSearchParams<{ id: string }>();
   const { getEventById, checkInAttendee } = useEvents();
   
@@ -164,7 +166,7 @@ export default function ScanQRScreen() {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
         <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
-        <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
+        <View style={[styles.header, { backgroundColor: theme.colors.primary, paddingTop: insets.top }]}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <CaretLeft size={24} color="white" weight="regular" />
           </TouchableOpacity>
@@ -184,7 +186,7 @@ export default function ScanQRScreen() {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
         <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
-        <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
+        <View style={[styles.header, { backgroundColor: theme.colors.primary, paddingTop: insets.top }]}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <CaretLeft size={24} color="white" weight="regular" />
           </TouchableOpacity>
@@ -215,7 +217,7 @@ export default function ScanQRScreen() {
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
       
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
+      <View style={[styles.header, { backgroundColor: theme.colors.primary, paddingTop: insets.top }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <CaretLeft size={24} color="white" weight="regular" />
         </TouchableOpacity>

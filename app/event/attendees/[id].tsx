@@ -1,14 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, FlatList, RefreshControl, ActivityIndicator, Alert, StatusBar } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, FlatList, RefreshControl, ActivityIndicator, Alert, StatusBar, TextInput } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { CaretLeft, UserCirclePlus, DotsThreeVertical, Trash, PencilSimple, Users, Calendar, CheckCircle, QrCode, Eye, FileArrowDown } from 'phosphor-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CaretLeft, UserCirclePlus, DotsThreeVertical, Trash, PencilSimple, Users, Calendar, CheckCircle, QrCode, Eye, FileArrowDown, MagnifyingGlass } from 'phosphor-react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { useEvents } from '../../../context/EventContext';
-import { Attendee as DatabaseAttendee } from '../../../services/DatabaseService';
-import SearchBar from '../../../components/search/SearchBar';
-import QuickFilterChips from '../../../components/search/QuickFilterChips';
-import RecentSearchDropdown from '../../../components/search/RecentSearchDropdown';
-import SearchService, { FilterType } from '../../../services/SearchService';
 import * as _ from 'lodash';
 
 // Local Attendee type that matches the database Attendee type but with optional fields
@@ -26,6 +22,7 @@ type Attendee = {
 
 export default function ManageAttendeesScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { id, mode } = useLocalSearchParams<{ id: string, mode?: string }>();
   const { getEventById, checkInAttendee } = useEvents();
   
@@ -34,14 +31,12 @@ export default function ManageAttendeesScreen() {
   
   const [event, setEvent] = useState<any>(null);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
+  const [filteredAttendees, setFilteredAttendees] = useState<Attendee[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedAttendee, setSelectedAttendee] = useState<string | null>(null);
-  const [recentSearches, setRecentSearches] = useState<any[]>([]);
-  const [showRecentSearches, setShowRecentSearches] = useState(false);
 
   useEffect(() => {
     loadEventAndAttendees();
@@ -185,8 +180,8 @@ export default function ManageAttendeesScreen() {
               );
               
               // Also update the filtered attendees
-              setFilteredAttendees(prevFiltered => 
-                prevFiltered.filter(attendee => attendee.id !== attendeeId)
+              setFilteredAttendees((prevFiltered: Attendee[]) => 
+                prevFiltered.filter((attendee: Attendee) => attendee.id !== attendeeId)
               );
               
               // Update the event object to reflect the change
@@ -236,8 +231,8 @@ export default function ManageAttendeesScreen() {
       );
       
       // Update filtered attendees as well
-      setFilteredAttendees(prevFiltered => 
-        prevFiltered.map(a => a.id === attendeeId ? updatedAttendee : a)
+      setFilteredAttendees((prevFiltered: Attendee[]) => 
+        prevFiltered.map((a: Attendee) => a.id === attendeeId ? updatedAttendee : a)
       );
       
       // In a real implementation, you would update the database here
@@ -262,7 +257,7 @@ export default function ManageAttendeesScreen() {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
         <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
-        <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
+        <View style={[styles.header, { backgroundColor: theme.colors.primary, paddingTop: insets.top }]}>
           <TouchableOpacity 
             style={styles.backButton} 
             onPress={() => router.back()}
@@ -284,7 +279,7 @@ export default function ManageAttendeesScreen() {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
         <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
-        <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
+        <View style={[styles.header, { backgroundColor: theme.colors.primary, paddingTop: insets.top }]}>
           <TouchableOpacity 
             style={styles.backButton} 
             onPress={() => router.back()}
@@ -314,7 +309,7 @@ export default function ManageAttendeesScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
-      <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
+      <View style={[styles.header, { backgroundColor: theme.colors.primary, paddingTop: insets.top }]}>
         <TouchableOpacity 
           style={styles.backButton} 
           onPress={() => router.back()}
@@ -555,7 +550,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 16,
     paddingBottom: 16,
     elevation: 4,
   },

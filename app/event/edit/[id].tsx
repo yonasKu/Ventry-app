@@ -1,13 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, StatusBar } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { CaretLeft, Check, Calendar, Clock, MapPin, Users, NotePencil } from 'phosphor-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CaretLeft, Check, Calendar, Clock, Users, NotePencil, Tag } from 'phosphor-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../../../context/ThemeContext';
 import { useEvents } from '../../../context/EventContext';
 
+// Event categories matching the field templates
+const EVENT_CATEGORIES = [
+  'Corporate Event',
+  'Conference',
+  'Workshop',
+  'Restaurant/Club',
+  'School/University',
+];
+
 export default function EditEventScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getEventById, updateEvent } = useEvents();
   
@@ -23,6 +34,8 @@ export default function EditEventScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [eventNotes, setEventNotes] = useState('');
   const [expectedAttendees, setExpectedAttendees] = useState('');
+  const [eventCategory, setEventCategory] = useState<string | null>(null);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
   useEffect(() => {
     loadEvent();
@@ -40,6 +53,7 @@ export default function EditEventScreen() {
         setEventLocation(eventData.location || '');
         setEventNotes(eventData.notes || '');
         setExpectedAttendees(eventData.expected_attendees ? String(eventData.expected_attendees) : '');
+        setEventCategory(eventData.category || null);
         
         // Parse date and time
         if (eventData.date) {
@@ -111,7 +125,8 @@ export default function EditEventScreen() {
         time: timeString,
         location: eventLocation,
         notes: eventNotes,
-        expected_attendees: expectedAttendees ? parseInt(expectedAttendees) : undefined
+        expected_attendees: expectedAttendees ? parseInt(expectedAttendees) : undefined,
+        category: eventCategory || undefined
       });
       
       // Navigate back to the event details screen
@@ -127,15 +142,15 @@ export default function EditEventScreen() {
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
-        <StatusBar barStyle="dark-content" backgroundColor={theme.colors.backgroundPrimary} />
-        <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary }]}>
+        <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+        <View style={[styles.header, { backgroundColor: theme.colors.primary, paddingTop: insets.top }]}>
           <TouchableOpacity 
             style={styles.backButton} 
             onPress={() => router.back()}
           >
-            <CaretLeft size={24} color={theme.colors.primary} weight="regular" />
+            <CaretLeft size={24} color="white" weight="regular" />
           </TouchableOpacity>
-          <Text style={{ fontSize: 18, fontWeight: 'bold', color: theme.colors.textPrimary }}>Edit Event</Text>
+          <Text style={[styles.headerTitle, { color: 'white' }]}>Edit Event</Text>
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.loadingContainer}>
@@ -148,15 +163,15 @@ export default function EditEventScreen() {
   if (error) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
-        <StatusBar barStyle="dark-content" backgroundColor={theme.colors.backgroundPrimary} />
-        <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary }]}>
+        <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+        <View style={[styles.header, { backgroundColor: theme.colors.primary, paddingTop: insets.top }]}>
           <TouchableOpacity 
             style={styles.backButton} 
             onPress={() => router.back()}
           >
-            <CaretLeft size={24} color={theme.colors.primary} weight="regular" />
+            <CaretLeft size={24} color="white" weight="regular" />
           </TouchableOpacity>
-          <Text style={{ fontSize: 18, fontWeight: 'bold', color: theme.colors.textPrimary }}>Edit Event</Text>
+          <Text style={[styles.headerTitle, { color: 'white' }]}>Edit Event</Text>
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.errorContainer}>
@@ -175,13 +190,14 @@ export default function EditEventScreen() {
   }
 
   return (
-    <KeyboardAvoidingView 
-      style={{ flex: 1 }} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
-        <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
-        <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
+    <View style={{ flex: 1 }}>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
+          <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+          <View style={[styles.header, { backgroundColor: theme.colors.primary, paddingTop: insets.top }]}>
           <TouchableOpacity 
             style={styles.backButton} 
             onPress={() => router.back()}
@@ -216,6 +232,54 @@ export default function EditEventScreen() {
                 onChangeText={setEventName}
                 editable={!isSubmitting}
               />
+            </View>
+
+            <View style={[styles.inputGroup, { borderBottomColor: theme.colors.border }]}>
+              <View style={styles.labelRow}>
+                <Tag size={16} color={theme.colors.textSecondary} weight="regular" />
+                <Text style={[styles.label, { color: theme.colors.textSecondary, marginLeft: 6 }]}>Event Category</Text>
+              </View>
+              <TouchableOpacity 
+                style={styles.categoryButton}
+                onPress={() => setShowCategoryPicker(!showCategoryPicker)}
+                disabled={isSubmitting}
+              >
+                <Text style={[styles.categoryText, { color: eventCategory ? theme.colors.textPrimary : theme.colors.textTertiary }]}>
+                  {eventCategory || 'Select category (optional)'}
+                </Text>
+              </TouchableOpacity>
+              {showCategoryPicker && (
+                <View style={[styles.categoryPicker, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
+                  <TouchableOpacity
+                    style={[styles.categoryOption, { borderBottomColor: theme.colors.border }]}
+                    onPress={() => {
+                      setEventCategory(null);
+                      setShowCategoryPicker(false);
+                    }}
+                  >
+                    <Text style={[styles.categoryOptionText, { color: theme.colors.textSecondary }]}>
+                      None
+                    </Text>
+                  </TouchableOpacity>
+                  {EVENT_CATEGORIES.map((category) => (
+                    <TouchableOpacity
+                      key={category}
+                      style={[styles.categoryOption, { borderBottomColor: theme.colors.border }]}
+                      onPress={() => {
+                        setEventCategory(category);
+                        setShowCategoryPicker(false);
+                      }}
+                    >
+                      <Text style={[styles.categoryOptionText, { 
+                        color: eventCategory === category ? theme.colors.primary : theme.colors.textPrimary,
+                        fontWeight: eventCategory === category ? '600' : '400'
+                      }]}>
+                        {category}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
 
             <View style={[styles.inputGroup, { borderBottomColor: theme.colors.border }]}>
@@ -314,6 +378,7 @@ export default function EditEventScreen() {
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -417,5 +482,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     minHeight: 100,
+  },
+  categoryButton: {
+    paddingVertical: 8,
+  },
+  categoryText: {
+    fontSize: 16,
+  },
+  categoryPicker: {
+    marginTop: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  categoryOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  categoryOptionText: {
+    fontSize: 16,
   },
 });

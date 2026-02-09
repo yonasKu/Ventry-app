@@ -1,6 +1,7 @@
 import React from 'react';
 import { Slot } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import CustomBottomNavigation from '../../components/CustomBottomNavigation';
 
@@ -8,7 +9,7 @@ export default function TabLayout() {
   const theme = useTheme();
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.backgroundPrimary }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.backgroundPrimary }} edges={['top']}>
       {/* Header */}
       {/* <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary }]}>
         <Text 
@@ -30,7 +31,7 @@ export default function TabLayout() {
       
       {/* Custom bottom navigation */}
       <CustomBottomNavigation />
-    </View>
+    </SafeAreaView>
   );
 }
 

@@ -14,7 +14,8 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.ventryapp"
     },
     "android": {
       "adaptiveIcon": {
@@ -24,8 +25,17 @@
       "package": "com.anonymous.ventryapp",
       "enableDangerousExperimentalLeanBuilds": false,
       "ndk": {
-        "abiFilters": ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"]
-      }
+        "abiFilters": [
+          "armeabi-v7a",
+          "arm64-v8a",
+          "x86",
+          "x86_64"
+        ]
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -41,7 +51,6 @@
           "cameraPermission": "Allow Ventry to access your camera to scan QR codes for check-in."
         }
       ]
-     
     ],
     "experiments": {
       "typedRoutes": true

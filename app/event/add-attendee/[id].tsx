@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, TextInput, Alert, StatusBar, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CaretLeft, UserCirclePlus, Envelope, Phone } from 'phosphor-react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { useEvents } from '../../../context/EventContext';
-import { CustomFieldsService, CustomField, FieldType } from '../../../services/CustomFieldsService';
+import { CustomFieldsService, CustomField } from '../../../services/CustomFieldsService';
 
 export default function AddAttendeeScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { addAttendee } = useEvents();
   
@@ -258,7 +260,7 @@ export default function AddAttendeeScreen() {
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
       
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
+      <View style={[styles.header, { backgroundColor: theme.colors.primary, paddingTop: insets.top }]}>
         <TouchableOpacity 
           style={styles.backButton} 
           onPress={() => router.back()}

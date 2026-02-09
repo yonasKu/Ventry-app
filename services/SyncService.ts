@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import { Paths, File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { nanoid } from 'nanoid/non-secure';
 import { DatabaseService, Event, Attendee } from './DatabaseService';
@@ -278,14 +278,10 @@ export class SyncService {
       // Generate filename
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const filename = `ventry-sync-${timestamp}.ventry`;
-      const fileUri = FileSystem.documentDirectory + filename;
+      const file = new File(Paths.document, filename);
       
       // Write to file
-      await FileSystem.writeAsStringAsync(
-        fileUri,
-        JSON.stringify(syncPackage, null, 2),
-        { encoding: FileSystem.EncodingType.UTF8 }
-      );
+      await file.write(JSON.stringify(syncPackage, null, 2));
       
       // Record sync
       await this.recordSync({
@@ -298,13 +294,13 @@ export class SyncService {
       // Share file
       const isAvailable = await Sharing.isAvailableAsync();
       if (isAvailable) {
-        await Sharing.shareAsync(fileUri, {
+        await Sharing.shareAsync(file.uri, {
           mimeType: 'application/json',
           dialogTitle: 'Export Sync File',
         });
       }
       
-      return fileUri;
+      return file.uri;
     } catch (error) {
       console.error('Error exporting data:', error);
       throw error;
@@ -411,9 +407,8 @@ export class SyncService {
    */
   async parseSyncPackage(fileUri: string): Promise<SyncPackage> {
     try {
-      const content = await FileSystem.readAsStringAsync(fileUri, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
+      const file = new File(fileUri);
+      const content = await file.text();
       
       const syncPackage = JSON.parse(content);
       

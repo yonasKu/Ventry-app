@@ -5,6 +5,7 @@ import { CaretLeft, CheckCircle } from 'phosphor-react-native';
 import { useTheme } from '../../../../context/ThemeContext';
 import { CustomFieldsService, FieldTemplate } from '../../../../services/CustomFieldsService';
 import { initializeBuiltInTemplates } from '../../../../data/fieldTemplates';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function FieldTemplatesScreen() {
   const theme = useTheme();
@@ -78,7 +79,7 @@ export default function FieldTemplatesScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
         <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
         <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -90,12 +91,12 @@ export default function FieldTemplatesScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
       
       {/* Header */}
@@ -156,7 +157,7 @@ export default function FieldTemplatesScreen() {
           </View>
         }
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

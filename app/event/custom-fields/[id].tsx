@@ -5,6 +5,7 @@ import { CaretLeft, Plus, PencilSimple, Trash, DotsSixVertical, Check, X } from 
 import { useTheme } from '../../../context/ThemeContext';
 import { useEvents } from '../../../context/EventContext';
 import { CustomFieldsService, CustomField } from '../../../services/CustomFieldsService';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function CustomFieldsScreen() {
   const theme = useTheme();
@@ -110,7 +111,7 @@ export default function CustomFieldsScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
       
       {/* Header */}
@@ -203,7 +204,7 @@ export default function CustomFieldsScreen() {
         <Plus size={24} color="white" weight="bold" />
         <Text style={styles.addButtonText}>Add Field</Text>
       </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 }
 

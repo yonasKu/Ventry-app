@@ -1,10 +1,19 @@
 import React, { useState } from 'react';
 import { StyleSheet, TouchableOpacity, Text, View, TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, StatusBar } from 'react-native';
 import { router } from 'expo-router';
-import { Calendar, CaretLeft, Check, Clock, MapPin, Users, NotePencil } from 'phosphor-react-native';
+import { Calendar, CaretLeft, Check, Clock, MapPin, Users, NotePencil, Tag } from 'phosphor-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../context/ThemeContext';
 import { useEvents } from '../context/EventContext';
+
+// Event categories matching the field templates
+const EVENT_CATEGORIES = [
+  'Corporate Event',
+  'Conference',
+  'Workshop',
+  'Restaurant/Club',
+  'School/University',
+];
 
 export default function CreateEventScreen() {
   const theme = useTheme();
@@ -18,6 +27,8 @@ export default function CreateEventScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [eventNotes, setEventNotes] = useState('');
   const [expectedAttendees, setExpectedAttendees] = useState('');
+  const [eventCategory, setEventCategory] = useState<string | null>(null);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
@@ -70,7 +81,8 @@ export default function CreateEventScreen() {
         time: timeString,
         location: eventLocation || null,
         notes: eventNotes || null,
-        expected_attendees: expectedAttendees ? parseInt(expectedAttendees) : null
+        expected_attendees: expectedAttendees ? parseInt(expectedAttendees) : null,
+        category: eventCategory || null
       });
       
       console.log('Event created successfully:', newEvent);
@@ -143,6 +155,54 @@ export default function CreateEventScreen() {
                 onChangeText={setEventName}
                 editable={!isSubmitting}
               />
+            </View>
+
+            <View style={[styles.inputGroup, { borderBottomColor: theme.colors.border }]}>
+              <View style={styles.labelRow}>
+                <Tag size={16} color={theme.colors.textSecondary} weight="regular" />
+                <Text style={[styles.label, { color: theme.colors.textSecondary, marginLeft: 6 }]}>Event Category</Text>
+              </View>
+              <TouchableOpacity 
+                style={styles.categoryButton}
+                onPress={() => setShowCategoryPicker(!showCategoryPicker)}
+                disabled={isSubmitting}
+              >
+                <Text style={[styles.categoryText, { color: eventCategory ? theme.colors.textPrimary : theme.colors.textTertiary }]}>
+                  {eventCategory || 'Select category (optional)'}
+                </Text>
+              </TouchableOpacity>
+              {showCategoryPicker && (
+                <View style={[styles.categoryPicker, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
+                  <TouchableOpacity
+                    style={[styles.categoryOption, { borderBottomColor: theme.colors.border }]}
+                    onPress={() => {
+                      setEventCategory(null);
+                      setShowCategoryPicker(false);
+                    }}
+                  >
+                    <Text style={[styles.categoryOptionText, { color: theme.colors.textSecondary }]}>
+                      None
+                    </Text>
+                  </TouchableOpacity>
+                  {EVENT_CATEGORIES.map((category) => (
+                    <TouchableOpacity
+                      key={category}
+                      style={[styles.categoryOption, { borderBottomColor: theme.colors.border }]}
+                      onPress={() => {
+                        setEventCategory(category);
+                        setShowCategoryPicker(false);
+                      }}
+                    >
+                      <Text style={[styles.categoryOptionText, { 
+                        color: eventCategory === category ? theme.colors.primary : theme.colors.textPrimary,
+                        fontWeight: eventCategory === category ? '600' : '400'
+                      }]}>
+                        {category}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
 
             <View style={[styles.inputGroup, { borderBottomColor: theme.colors.border }]}>
@@ -324,5 +384,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     minHeight: 100,
-  }
+  },
+  categoryButton: {
+    paddingVertical: 8,
+  },
+  categoryText: {
+    fontSize: 16,
+  },
+  categoryPicker: {
+    marginTop: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  categoryOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  categoryOptionText: {
+    fontSize: 16,
+  },
 });

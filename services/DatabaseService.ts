@@ -10,6 +10,7 @@ export interface Event {
   location?: string | null;
   notes?: string | null;
   expected_attendees?: number | null;
+  category?: string | null; // Event category (Corporate Event, Conference, etc.)
   created_at: string;
   updated_at: string;
   attendees_count?: number;
@@ -87,6 +88,12 @@ function migrateDatabase(): void {
       db.runSync('ALTER TABLE attendees ADD COLUMN check_in_time TEXT;');
     }
     
+    // Check if category column exists in events table
+    if (!columnExists('events', 'category')) {
+      console.log('Adding category column to events table');
+      db.runSync('ALTER TABLE events ADD COLUMN category TEXT;');
+    }
+    
     console.log('Database migration completed successfully');
   } catch (error) {
     console.error('Error migrating database:', error);
@@ -162,7 +169,8 @@ export class DatabaseService {
       checked_in_count: 0,
       location: eventData.location || null,
       notes: eventData.notes || null,
-      expected_attendees: eventData.expected_attendees || null
+      expected_attendees: eventData.expected_attendees || null,
+      category: eventData.category || null
     };
 
     try {
@@ -175,6 +183,7 @@ export class DatabaseService {
         newEvent.location || null,  // Ensure null not undefined
         newEvent.notes || null,     // Ensure null not undefined
         newEvent.expected_attendees || null,  // Ensure null not undefined
+        newEvent.category || null,  // Ensure null not undefined
         newEvent.created_at,
         newEvent.updated_at,
         newEvent.attendees_count || 0,  // Default to 0
@@ -183,8 +192,8 @@ export class DatabaseService {
       
       // Execute the SQL query
       const result = db.runSync(
-        `INSERT INTO events (id, title, date, time, location, notes, expected_attendees, created_at, updated_at, attendees_count, checked_in_count)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        `INSERT INTO events (id, title, date, time, location, notes, expected_attendees, category, created_at, updated_at, attendees_count, checked_in_count)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
         params
       ) as SQLiteResult;
       return newEvent; // Directly return the new event object

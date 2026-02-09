@@ -7,20 +7,20 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  Platform,
-  StatusBar,
   Switch,
   TextInput,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { CaretLeft, FileArrowDown, Users, CalendarCheck, Lock, FileJs, FileCode, FilePdf } from 'phosphor-react-native';
-import * as FileSystem from 'expo-file-system';
+import { Paths, File } from 'expo-file-system';
 import { useTheme } from '../../../context/ThemeContext';
 import { DatabaseService, Event } from '../../../services/DatabaseService';
 import CsvService from '../../../services/CsvService';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ExportScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { id: eventId } = useLocalSearchParams<{ id: string }>();
   const db = new DatabaseService();
 
@@ -67,7 +67,6 @@ export default function ExportScreen() {
     try {
       setIsExporting(true);
       
-      // Get attendees for this event
       const attendees = db.getAttendees(eventId);
       
       if (attendees.length === 0) {
@@ -109,10 +108,9 @@ export default function ExportScreen() {
           const filename = `${sanitizedEventName}_attendees_${timestamp}.json`;
           
           // Save to file
-          filePath = `${FileSystem.documentDirectory}${filename}`;
-          await FileSystem.writeAsStringAsync(filePath, jsonData, {
-            encoding: FileSystem.EncodingType.UTF8
-          });
+          const file = new File(Paths.document, filename);
+          await file.write(jsonData);
+          filePath = file.uri;
           break;
           
         case 'Excel':
@@ -128,9 +126,10 @@ export default function ExportScreen() {
       
       // If password protection is enabled, add a simple header (in a real app, use proper encryption)
       if (isPasswordProtected && password.trim()) {
-        const fileContent = await FileSystem.readAsStringAsync(filePath);
+        const file = new File(filePath);
+        const fileContent = await file.text();
         const protectedContent = `PROTECTED:${password}\n${fileContent}`;
-        await FileSystem.writeAsStringAsync(filePath, protectedContent);
+        await file.write(protectedContent);
       }
       
       // Share the file
@@ -182,10 +181,9 @@ export default function ExportScreen() {
           const filename = `${sanitizedEventName}_details_${timestamp}.json`;
           
           // Save to file
-          filePath = `${FileSystem.documentDirectory}${filename}`;
-          await FileSystem.writeAsStringAsync(filePath, jsonData, {
-            encoding: FileSystem.EncodingType.UTF8
-          });
+          const file = new File(Paths.document, filename);
+          await file.write(jsonData);
+          filePath = file.uri;
           break;
           
         case 'Excel':
@@ -201,9 +199,10 @@ export default function ExportScreen() {
       
       // If password protection is enabled, add a simple header (in a real app, use proper encryption)
       if (isPasswordProtected && password.trim()) {
-        const fileContent = await FileSystem.readAsStringAsync(filePath);
+        const file = new File(filePath);
+        const fileContent = await file.text();
         const protectedContent = `PROTECTED:${password}\n${fileContent}`;
-        await FileSystem.writeAsStringAsync(filePath, protectedContent);
+        await file.write(protectedContent);
       }
       
       // Share the file
@@ -220,7 +219,7 @@ export default function ExportScreen() {
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.backgroundPrimary }]}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top }]}>
           <TouchableOpacity
             style={[styles.backButton, { backgroundColor: theme.colors.backgroundSecondary }]}
             onPress={() => router.back()}
@@ -240,7 +239,7 @@ export default function ExportScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.backgroundPrimary }]}>
-      <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary }]}>
+      <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary, paddingTop: insets.top }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.colors.backgroundSecondary }]}
           onPress={() => router.back()}
@@ -447,7 +446,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? (StatusBar.currentHeight || 0) + 10 : (StatusBar.currentHeight || 0) + 15,
     paddingBottom: 15,
     elevation: 4,
   },

@@ -4,6 +4,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { CaretLeft, Plus, X } from 'phosphor-react-native';
 import { useTheme } from '../../../../context/ThemeContext';
 import { CustomFieldsService, FieldType } from '../../../../services/CustomFieldsService';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const FIELD_TYPES: { value: FieldType; label: string; description: string }[] = [
   { value: 'text', label: 'Text', description: 'Single line text input' },
@@ -99,7 +100,7 @@ export default function AddCustomFieldScreen() {
   const selectedType = FIELD_TYPES.find(t => t.value === type);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
       
       {/* Header */}
@@ -330,7 +331,7 @@ export default function AddCustomFieldScreen() {
           <Text style={styles.saveButtonText}>Save Field</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 

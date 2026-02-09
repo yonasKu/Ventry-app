@@ -1,5 +1,5 @@
 import Papa from 'papaparse';
-import * as FileSystem from 'expo-file-system';
+import { Paths, File } from 'expo-file-system';
 import { Alert, Platform, Share } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
@@ -248,12 +248,10 @@ export class CsvService {
       const filename = `${sanitizedEventName}_attendees_${timestamp}.csv`;
       
       // Save to file
-      const filePath = `${FileSystem.documentDirectory}${filename}`;
-      await FileSystem.writeAsStringAsync(filePath, csv, {
-        encoding: FileSystem.EncodingType.UTF8
-      });
+      const file = new File(Paths.document, filename);
+      await file.write(csv);
       
-      return filePath;
+      return file.uri;
     } catch (error: any) {
       console.error('Error exporting attendees to CSV:', error);
       throw new Error(`Failed to export attendees: ${error.message || 'Unknown error'}`);
@@ -289,12 +287,10 @@ export class CsvService {
       const filename = `${sanitizedEventName}_details_${timestamp}.csv`;
       
       // Save to file
-      const filePath = `${FileSystem.documentDirectory}${filename}`;
-      await FileSystem.writeAsStringAsync(filePath, csv, {
-        encoding: FileSystem.EncodingType.UTF8
-      });
+      const file = new File(Paths.document, filename);
+      await file.write(csv);
       
-      return filePath;
+      return file.uri;
     } catch (error: any) {
       console.error('Error exporting event to CSV:', error);
       throw new Error(`Failed to export event: ${error.message || 'Unknown error'}`);
@@ -320,7 +316,8 @@ export class CsvService {
         }
       } else {
         // Web platform
-        const fileContent = await FileSystem.readAsStringAsync(filePath);
+        const file = new File(filePath);
+        const fileContent = await file.text();
         const blob = new Blob([fileContent], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         
@@ -354,7 +351,8 @@ export class CsvService {
       }
       
       const fileUri = result.assets[0].uri;
-      const content = await FileSystem.readAsStringAsync(fileUri);
+      const file = new File(fileUri);
+      const content = await file.text();
       return content;
     } catch (error: any) {
       console.error('Error importing CSV file:', error);

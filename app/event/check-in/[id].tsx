@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, TextInput, FlatList, RefreshControl, ActivityIndicator, Alert, StatusBar, Keyboard, TouchableWithoutFeedback } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, TextInput, FlatList, RefreshControl, ActivityIndicator, Alert, StatusBar } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CaretLeft, MagnifyingGlass, UserCirclePlus, QrCode, Users } from 'phosphor-react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { useEvents } from '../../../context/EventContext';
@@ -10,6 +11,7 @@ import { Attendee } from '../../../models/Attendee';
 
 export default function CheckInScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id: string }>();
   const id = params.id;
   const { getEventById, checkInAttendee } = useEvents();
@@ -176,7 +178,7 @@ export default function CheckInScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
-      <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
+      <View style={[styles.header, { backgroundColor: theme.colors.primary, paddingTop: insets.top }]}>
         <TouchableOpacity 
           style={styles.backButton} 
           onPress={() => router.back()}

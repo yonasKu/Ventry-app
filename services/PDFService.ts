@@ -1,6 +1,6 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
+import { Paths, File } from 'expo-file-system';
 import { format } from 'date-fns';
 import { DatabaseService, Event, Attendee } from './DatabaseService';
 import ReportingService, { ReportData, CheckInStats } from './ReportingService';
@@ -57,15 +57,14 @@ export class PDFService {
       // Create a better filename
       const timestamp = format(new Date(), 'yyyyMMdd_HHmmss');
       const filename = `ventry_statistics_${timeFilter}_${timestamp}.pdf`;
-      const newPath = `${FileSystem.documentDirectory}${filename}`;
+      const newFile = new File(Paths.document, filename);
       
       // Move file to new location with better name
-      await FileSystem.moveAsync({
-        from: uri,
-        to: newPath
-      });
+      const tempFile = new File(uri);
+      await tempFile.copy(newFile);
+      await tempFile.delete();
       
-      return newPath;
+      return newFile.uri;
     } catch (error: any) {
       console.error('Error generating statistics PDF:', error);
       throw new Error(`Failed to generate statistics PDF: ${error.message}`);
@@ -105,15 +104,14 @@ export class PDFService {
       const sanitizedEventName = event.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
       const timestamp = format(new Date(), 'yyyyMMdd_HHmmss');
       const filename = `${sanitizedEventName}_report_${timestamp}.pdf`;
-      const newPath = `${FileSystem.documentDirectory}${filename}`;
+      const newFile = new File(Paths.document, filename);
       
       // Move file to new location with better name
-      await FileSystem.moveAsync({
-        from: uri,
-        to: newPath
-      });
+      const tempFile = new File(uri);
+      await tempFile.copy(newFile);
+      await tempFile.delete();
       
-      return newPath;
+      return newFile.uri;
     } catch (error: any) {
       console.error('Error generating event PDF:', error);
       throw new Error(`Failed to generate event PDF: ${error.message}`);
@@ -686,9 +684,9 @@ export class PDFService {
    */
   async cleanup(filePath: string): Promise<void> {
     try {
-      const fileInfo = await FileSystem.getInfoAsync(filePath);
-      if (fileInfo.exists) {
-        await FileSystem.deleteAsync(filePath);
+      const file = new File(filePath);
+      if (file.exists) {
+        await file.delete();
       }
     } catch (error) {
       console.error('Error cleaning up file:', error);

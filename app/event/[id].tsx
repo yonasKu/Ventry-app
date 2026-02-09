@@ -10,6 +10,7 @@ import {
   Alert,
   StatusBar,
 } from "react-native";
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from "expo-router";
 import {
   CaretLeft,
@@ -35,6 +36,7 @@ import ExportPDFButton from "@/components/ExportPDFButton";
 
 export default function EventDetailScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getEventById, deleteEvent } = useEvents();
   const [event, setEvent] = useState<any>(null);
@@ -226,7 +228,7 @@ export default function EventDetailScreen() {
         barStyle="light-content"
         backgroundColor={theme.colors.primary}
       />
-      <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
+      <View style={[styles.header, { backgroundColor: theme.colors.primary, paddingTop: insets.top }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}

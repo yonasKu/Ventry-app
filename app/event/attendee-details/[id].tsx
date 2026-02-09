@@ -6,9 +6,11 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useEvents } from '../../../context/EventContext';
 import AttendeeQRCode from '../../../components/AttendeeQRCode';
 import * as Clipboard from 'expo-clipboard';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AttendeeDetailsScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { id, attendeeId } = useLocalSearchParams<{ id: string, attendeeId: string }>();
   const { getEventById, checkInAttendee, deleteAttendee } = useEvents();
   
@@ -127,7 +129,7 @@ export default function AttendeeDetailsScreen() {
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.backgroundPrimary }]}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <CaretLeft size={24} color={theme.colors.textPrimary} weight="bold" />
           </TouchableOpacity>
@@ -143,7 +145,7 @@ export default function AttendeeDetailsScreen() {
   if (error || !attendee) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.backgroundPrimary }]}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <CaretLeft size={24} color={theme.colors.textPrimary} weight="bold" />
           </TouchableOpacity>
@@ -164,7 +166,7 @@ export default function AttendeeDetailsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.backgroundPrimary }]}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <CaretLeft size={24} color={theme.colors.textPrimary} weight="bold" />
         </TouchableOpacity>
@@ -297,7 +299,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 60,
     paddingBottom: 16,
   },
   backButton: {
