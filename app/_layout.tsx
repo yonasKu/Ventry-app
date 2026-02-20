@@ -15,6 +15,7 @@ import { useColorScheme } from "@/components/useColorScheme";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { EventProvider } from "@/context/EventContext";
 import { initDatabase } from "../services/DatabaseService";
+import '../i18n/config'; // Initialize i18n
 
 // Initialize the database on app startup
 try {

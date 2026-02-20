@@ -1,11 +1,24 @@
 import { StyleSheet, TouchableOpacity, Switch, Text, View } from 'react-native';
 import { useState } from 'react';
-import { CaretRight, PencilSimple, Trash } from 'phosphor-react-native';
+import { CaretRight, PencilSimple, Trash, Globe } from 'phosphor-react-native';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/context/ThemeContext';
+import LanguageSelector from '@/components/LanguageSelector';
 
 export default function AccountScreen() {
   const theme = useTheme();
+  const { t, i18n } = useTranslation();
   const [pinProtection, setPinProtection] = useState(true);
+  const [showLanguageSelector, setShowLanguageSelector] = useState(false);
+
+  const getLanguageName = (code: string) => {
+    const languages: Record<string, string> = {
+      en: 'English',
+      es: 'Español',
+      fr: 'Français',
+    };
+    return languages[code] || code;
+  };
 
   // In a real app, this would come from local storage
   const userData = {
@@ -19,7 +32,7 @@ export default function AccountScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
       <View style={[styles.card, { backgroundColor: theme.colors.backgroundPrimary }, theme.shadows.sm]}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Profile</Text>
+        <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>{t('account.settings')}</Text>
         <View style={styles.profileInfo}>
           <Text style={[styles.userName, { color: theme.colors.textPrimary }]}>{userData.name}</Text>
           <Text style={[styles.userOrg, { color: theme.colors.textSecondary }]}>{userData.organization}</Text>
@@ -27,17 +40,36 @@ export default function AccountScreen() {
         <TouchableOpacity style={[styles.editButton, { backgroundColor: theme.colors.border }]}>
           <View style={styles.editButtonContent}>
             <PencilSimple size={16} color={theme.colors.textSecondary} weight="regular" />
-            <Text style={[styles.editButtonText, { color: theme.colors.textSecondary }]}>Edit Profile</Text>
+            <Text style={[styles.editButtonText, { color: theme.colors.textSecondary }]}>{t('common.edit')} {t('account.settings')}</Text>
           </View>
         </TouchableOpacity>
       </View>
 
       <View style={[styles.card, { backgroundColor: theme.colors.backgroundPrimary }, theme.shadows.sm]}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>App Security</Text>
+        <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>{t('account.settings')}</Text>
+        <TouchableOpacity 
+          style={[styles.settingRow, { borderBottomColor: theme.colors.border }]}
+          onPress={() => setShowLanguageSelector(true)}
+        >
+          <View style={styles.settingTextContainer}>
+            <View style={styles.settingLabelRow}>
+              <Globe size={16} color={theme.colors.textSecondary} weight="regular" />
+              <Text style={[styles.settingLabel, { color: theme.colors.textPrimary, marginLeft: 8 }]}>{t('account.language')}</Text>
+            </View>
+            <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+              {getLanguageName(i18n.language)}
+            </Text>
+          </View>
+          <CaretRight size={16} color={theme.colors.textTertiary} weight="regular" />
+        </TouchableOpacity>
+      </View>
+
+      <View style={[styles.card, { backgroundColor: theme.colors.backgroundPrimary }, theme.shadows.sm]}>
+        <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>{t('account.security')}</Text>
         <View style={[styles.settingRow, { borderBottomColor: theme.colors.border }]}>
           <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingLabel, { color: theme.colors.textPrimary }]}>PIN Protection</Text>
-            <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>Require PIN when app opens</Text>
+            <Text style={[styles.settingLabel, { color: theme.colors.textPrimary }]}>{t('account.pinProtection')}</Text>
+            <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{t('account.pinDescription')}</Text>
           </View>
           <Switch
             value={pinProtection}
@@ -59,11 +91,11 @@ export default function AccountScreen() {
         <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Storage Usage</Text>
         <View style={styles.storageInfo}>
           <View style={[styles.storageRow, { borderBottomColor: theme.colors.border }]}>
-            <Text style={[styles.storageLabel, { color: theme.colors.textSecondary }]}>Events:</Text>
+            <Text style={[styles.storageLabel, { color: theme.colors.textSecondary }]}>{t('events.title')}:</Text>
             <Text style={[styles.storageValue, { color: theme.colors.textPrimary }]}>{userData.events}</Text>
           </View>
           <View style={[styles.storageRow, { borderBottomColor: theme.colors.border }]}>
-            <Text style={[styles.storageLabel, { color: theme.colors.textSecondary }]}>Attendees:</Text>
+            <Text style={[styles.storageLabel, { color: theme.colors.textSecondary }]}>{t('attendees.title')}:</Text>
             <Text style={[styles.storageValue, { color: theme.colors.textPrimary }]}>{userData.attendees}</Text>
           </View>
           <View style={[styles.storageRow, { borderBottomColor: theme.colors.border }]}>
@@ -87,9 +119,14 @@ export default function AccountScreen() {
       </View>
 
       <View style={styles.versionContainer}>
-        <Text style={[styles.versionText, { color: theme.colors.textTertiary }]}>Ventry v1.0.0</Text>
-        <Text style={[styles.offlineText, { color: theme.colors.textTertiary }]}>Offline Mode</Text>
+        <Text style={[styles.versionText, { color: theme.colors.textTertiary }]}>{t('common.appName')} {t('account.version')} 1.0.0</Text>
+        <Text style={[styles.offlineText, { color: theme.colors.textTertiary }]}>{t('account.offlineMode')}</Text>
       </View>
+
+      <LanguageSelector 
+        visible={showLanguageSelector}
+        onClose={() => setShowLanguageSelector(false)}
+      />
     </View>
   );
 }
@@ -143,6 +180,11 @@ const styles = StyleSheet.create({
   },
   settingTextContainer: {
     flex: 1,
+  },
+  settingLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
   },
   settingLabel: {
     fontSize: 16,
