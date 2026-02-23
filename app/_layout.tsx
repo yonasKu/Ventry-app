@@ -10,6 +10,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import "react-native-reanimated";
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { useColorScheme } from "@/components/useColorScheme";
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -76,24 +77,26 @@ function RootLayoutNav() {
   console.log("Color scheme:", colorScheme);
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        <EventProvider>
-          <NavigationThemeProvider
-            value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
-          >
-            <Stack>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-              <Stack.Screen
-                name="create-event"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen name="event" options={{ headerShown: false }} />
-            </Stack>
-          </NavigationThemeProvider>
-        </EventProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <EventProvider>
+            <NavigationThemeProvider
+              value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
+            >
+              <Stack>
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+                <Stack.Screen
+                  name="create-event"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen name="event" options={{ headerShown: false }} />
+              </Stack>
+            </NavigationThemeProvider>
+          </EventProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

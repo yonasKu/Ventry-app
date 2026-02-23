@@ -8,14 +8,18 @@ import {
   ActivityIndicator,
   RefreshControl,
   StatusBar,
+  Share,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import { CaretLeft } from 'phosphor-react-native';
+import { CaretLeft, ShareNetwork } from 'phosphor-react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useEvents } from '@/context/EventContext';
 import CheckInChart from '@/components/statistics/CheckInChart';
 import CheckinSpeedGauge from '@/components/statistics/CheckinSpeedGauge';
+import CheckInTimeline from '@/components/statistics/CheckInTimeline';
+import AttendeeCheckInList from '@/components/statistics/AttendeeCheckInList';
+import PeakCheckInInsights from '@/components/statistics/PeakCheckInInsights';
 import ExportPDFButton from '@/components/ExportPDFButton';
 
 export default function EventStatsScreen() {
@@ -26,10 +30,22 @@ export default function EventStatsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   React.useEffect(() => {
     loadEvent();
   }, [id]);
+
+  // Auto-refresh for active events (every 30 seconds)
+  React.useEffect(() => {
+    if (!event || !autoRefresh) return;
+
+    const interval = setInterval(() => {
+      loadEvent();
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [event, autoRefresh]);
 
   const loadEvent = async () => {
     if (!id) return;
@@ -49,6 +65,26 @@ export default function EventStatsScreen() {
     await refreshEvents();
     await loadEvent();
     setRefreshing(false);
+  };
+
+  const handleShare = async () => {
+    if (!event || !stats) return;
+    
+    try {
+      const message = `📊 ${event.title} Statistics\n\n` +
+        `👥 Total Attendees: ${stats.totalAttendees}\n` +
+        `✅ Checked In: ${stats.checkedIn}\n` +
+        `📈 Check-in Rate: ${stats.checkInRate}%\n` +
+        `📅 Date: ${new Date(event.date).toLocaleDateString()}\n` +
+        `🕐 Time: ${event.time}`;
+      
+      await Share.share({
+        message,
+        title: `${event.title} - Event Statistics`,
+      });
+    } catch (error) {
+      console.error('Error sharing stats:', error);
+    }
   };
 
   // Calculate stats for this specific event
@@ -148,7 +184,9 @@ export default function EventStatsScreen() {
             <Text style={styles.headerTitle}>{event.title}</Text>
             <Text style={styles.headerSubtitle}>Statistics</Text>
           </View>
-          <View style={{ width: 40 }} />
+          <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+            <ShareNetwork size={24} color="white" weight="regular" />
+          </TouchableOpacity>
         </View>
 
         <ScrollView
@@ -163,6 +201,20 @@ export default function EventStatsScreen() {
             />
           }
         >
+          {/* Auto-refresh toggle */}
+          <TouchableOpacity
+            style={[styles.autoRefreshButton, { 
+              backgroundColor: autoRefresh ? theme.colors.primary : theme.colors.backgroundPrimary 
+            }]}
+            onPress={() => setAutoRefresh(!autoRefresh)}
+          >
+            <Text style={[styles.autoRefreshText, { 
+              color: autoRefresh ? 'white' : theme.colors.textSecondary 
+            }]}>
+              {autoRefresh ? '🔄 Auto-refresh ON' : 'Auto-refresh OFF'}
+            </Text>
+          </TouchableOpacity>
+
           {/* Overview Stats */}
           <View style={[styles.overviewCard, { backgroundColor: theme.colors.backgroundPrimary }]}>
             <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
@@ -201,6 +253,19 @@ export default function EventStatsScreen() {
             <ExportPDFButton type="event" eventId={id} variant="primary" />
           </View>
 
+          {/* Peak Check-in Insights */}
+          <PeakCheckInInsights 
+            attendees={event.attendees || []} 
+            eventDate={event.date}
+            eventTime={event.time}
+          />
+
+          {/* Check-in Timeline */}
+          <CheckInTimeline 
+            attendees={event.attendees || []} 
+            eventDate={event.date}
+          />
+
           {/* Check-in Status Chart */}
           <CheckInChart data={chartData.pieData} stats={chartData.pieStats} />
 
@@ -210,6 +275,9 @@ export default function EventStatsScreen() {
             label="Check-in Speed"
             unit="per minute"
           />
+
+          {/* Attendee Check-in List */}
+          <AttendeeCheckInList attendees={event.attendees || []} maxItems={10} />
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -228,6 +296,14 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  shareButton: {
     width: 40,
     height: 40,
     alignItems: 'center',
@@ -269,6 +345,22 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
+  },
+  autoRefreshButton: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  autoRefreshText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   overviewCard: {
     borderRadius: 16,

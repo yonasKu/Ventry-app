@@ -72,23 +72,9 @@ export default function SlideToCheckIn({ attendee, onCheckIn, onUncheckIn }: Sli
     }
   };
 
-  // Handle successful check-in with animation and haptic
-  const handleSuccessfulCheckIn = () => {
-    // Visual feedback - pulse animation
-    scale.value = withSequence(
-      withTiming(1.05, { duration: 100 }),
-      withTiming(1, { duration: 200 })
-    );
-    
-    // Haptic feedback
-    runOnJS(triggerCheckInHaptic)();
-    
-    // Callback
-    runOnJS(onCheckIn)(attendee.id);
-  };
-
   // Handle uncheck-in with animation and haptic
   const handleUncheckIn = () => {
+    'worklet';
     // Visual feedback - subtle shake
     translateX.value = withSequence(
       withTiming(-10, { duration: 50 }),
@@ -101,6 +87,22 @@ export default function SlideToCheckIn({ attendee, onCheckIn, onUncheckIn }: Sli
     
     // Callback
     runOnJS(onUncheckIn)(attendee.id);
+  };
+
+  // Handle successful check-in with animation and haptic
+  const handleSuccessfulCheckIn = () => {
+    'worklet';
+    // Visual feedback - pulse animation
+    scale.value = withSequence(
+      withTiming(1.05, { duration: 100 }),
+      withTiming(1, { duration: 200 })
+    );
+    
+    // Haptic feedback
+    runOnJS(triggerCheckInHaptic)();
+    
+    // Callback
+    runOnJS(onCheckIn)(attendee.id);
   };
 
   const panGesture = Gesture.Pan()
@@ -153,6 +155,19 @@ export default function SlideToCheckIn({ attendee, onCheckIn, onUncheckIn }: Sli
       direction.value = withTiming(0);
     });
 
+  // Add tap gesture for quick check-in/uncheck
+  const tapGesture = Gesture.Tap()
+    .onEnd(() => {
+      if (attendee.checked_in) {
+        handleUncheckIn();
+      } else {
+        handleSuccessfulCheckIn();
+      }
+    });
+
+  // Combine gestures - tap or pan
+  const combinedGesture = Gesture.Race(panGesture, tapGesture);
+
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: translateX.value },
@@ -176,41 +191,60 @@ export default function SlideToCheckIn({ attendee, onCheckIn, onUncheckIn }: Sli
   });
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary, marginBottom: 10 }]}>
-      {/* Background with action indicators */}
-      <View style={[styles.backgroundContainer, { backgroundColor: theme.colors.primary }]}>
-        <View style={styles.actionIndicator}>
-          <ArrowLeft size={18} color="#FFF" weight="bold" />
-          <Text style={styles.actionText}>Uncheck</Text>
+    <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
+      {/* Background with visible action indicators */}
+      <View style={[styles.backgroundContainer]}>
+        <View style={[styles.leftAction, { backgroundColor: theme.colors.error + '20' }]}>
+          <ArrowLeft size={20} color={theme.colors.error} weight="bold" />
+          <Text style={[styles.actionText, { color: theme.colors.error }]}>Uncheck</Text>
         </View>
         
-        <View style={styles.actionIndicator}>
-          <Text style={styles.actionText}>Check In</Text>
-          <ArrowRight size={18} color="#FFF" weight="bold" />
+        <View style={[styles.rightAction, { backgroundColor: theme.colors.success + '20' }]}>
+          <Text style={[styles.actionText, { color: theme.colors.success }]}>Check In</Text>
+          <ArrowRight size={20} color={theme.colors.success} weight="bold" />
         </View>
       </View>
       
-      <GestureDetector gesture={panGesture}>
+      <GestureDetector gesture={combinedGesture}>
         <Animated.View 
           style={[styles.attendeeCard, animatedStyle, { backgroundColor: theme.colors.backgroundPrimary }]}
           accessible={true}
           accessibilityLabel={attendee.checked_in 
-            ? `${attendee.name} is checked in. Swipe left to uncheck.` 
-            : `${attendee.name} is not checked in. Swipe right to check in.`}
-          accessibilityHint="Swipe right to check in or left to uncheck"
+            ? `${attendee.name} is checked in. Swipe left to uncheck or tap to toggle.` 
+            : `${attendee.name} is not checked in. Swipe right to check in or tap to toggle.`}
+          accessibilityHint="Swipe right to check in, left to uncheck, or tap to toggle"
         >
           {/* Progress indicator at bottom of card */}
           <Animated.View style={[styles.progressIndicator, progressIndicatorStyle]} />
           
+          {/* Swipe hint overlay - shows on first render */}
+          {!attendee.checked_in && (
+            <View style={[styles.swipeHint, { backgroundColor: theme.colors.primary + '15' }]}>
+              <ArrowRight size={16} color={theme.colors.primary} weight="bold" />
+              <Text style={[styles.swipeHintText, { color: theme.colors.primary }]}>
+                Swipe or tap to check in
+              </Text>
+            </View>
+          )}
+          
           <View style={styles.attendeeInfo}>
             <Text style={[styles.attendeeName, { color: theme.colors.textPrimary }]}>{attendee.name}</Text>
-            <Text style={[styles.attendeeEmail, { color: theme.colors.textSecondary }]}>{attendee.email}</Text>
+            {attendee.email && (
+              <Text style={[styles.attendeeEmail, { color: theme.colors.textSecondary }]}>{attendee.email}</Text>
+            )}
           </View>
-          <View>
+          
+          <View style={styles.statusContainer}>
             {attendee.checked_in ? (
-              <CheckCircle size={24} color={theme.colors.success} weight="bold" />
+              <View style={[styles.checkedInBadge, { backgroundColor: theme.colors.success + '20' }]}>
+                <CheckCircle size={20} color={theme.colors.success} weight="fill" />
+                <Text style={[styles.checkedInText, { color: theme.colors.success }]}>Checked In</Text>
+              </View>
             ) : (
-              <View style={[styles.statusIndicator, { borderColor: theme.colors.border }]} />
+              <View style={[styles.notCheckedBadge, { backgroundColor: theme.colors.border }]}>
+                <View style={[styles.statusIndicator, { borderColor: theme.colors.textSecondary }]} />
+                <Text style={[styles.notCheckedText, { color: theme.colors.textSecondary }]}>Not Checked</Text>
+              </View>
             )}
           </View>
         </Animated.View>
@@ -223,52 +257,110 @@ const styles = StyleSheet.create({
   container: {
     borderRadius: 12,
     overflow: 'hidden',
+    marginBottom: 12,
+    position: 'relative',
   },
   backgroundContainer: {
     ...StyleSheet.absoluteFillObject,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+  },
+  leftAction: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingLeft: 20,
+    height: '100%',
+  },
+  rightAction: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingRight: 20,
+    height: '100%',
   },
   attendeeCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
+    padding: 16,
     borderRadius: 12,
-    position: 'relative', // For progress indicator
+    position: 'relative',
     overflow: 'hidden',
+    minHeight: 80,
   },
   attendeeInfo: {
     flex: 1,
   },
   attendeeName: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
   },
   attendeeEmail: {
     fontSize: 14,
     opacity: 0.7,
   },
-  statusIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
+  statusContainer: {
+    marginLeft: 12,
   },
-  actionIndicator: {
+  checkedInBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 6,
+  },
+  checkedInText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  notCheckedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 6,
+  },
+  notCheckedText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  statusIndicator: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 2,
   },
   actionText: {
-    color: 'white',
-    fontWeight: 'bold',
-    marginHorizontal: 4,
+    fontWeight: '600',
+    marginHorizontal: 6,
+    fontSize: 14,
   },
   progressIndicator: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     height: 3,
+    borderRadius: 1.5,
+  },
+  swipeHint: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  swipeHintText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
 }); 

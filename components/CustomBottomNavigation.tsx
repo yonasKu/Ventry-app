@@ -13,6 +13,7 @@ import {
   CalendarBlank,
   CloudArrowDown,
   ChartPie,
+  Gear,
 } from 'phosphor-react-native';
 import Animated, {
   useSharedValue,
@@ -62,6 +63,11 @@ export default function CustomBottomNavigation() {
       label: 'Stats',
       icon: (color, size) => <ChartPie size={size} color={color} weight={pathname.startsWith('/stats') ? 'fill' : 'regular'} />,
       path: '/stats',
+    },
+    {
+      label: 'Settings',
+      icon: (color, size) => <Gear size={size} color={color} weight={pathname.startsWith('/settings') ? 'fill' : 'regular'} />,
+      path: '/settings',
     },
   ];
 

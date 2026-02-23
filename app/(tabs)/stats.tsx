@@ -247,13 +247,13 @@ export default function StatsScreen() {
       }
     >
       {/* Header with Filter Icon */}
-      <View style={styles.headerRow}>
+      <View style={styles.headerContainer}>
         <StatsHeader />
         <TouchableOpacity
           style={[styles.filterButton, { backgroundColor: theme.colors.backgroundPrimary }]}
           onPress={() => setFilterSheetVisible(true)}
         >
-          <Funnel size={20} color={theme.colors.primary} weight="bold" />
+          <Funnel size={22} color={theme.colors.primary} weight="bold" />
         </TouchableOpacity>
       </View>
       
@@ -319,32 +319,28 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 40,
   },
-  headerRow: {
+  headerContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 16,
   },
   filterButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  headerContainer: {
-    marginBottom: 16,
-    paddingHorizontal: 24,
   },
   summaryCard: {
     padding: 20,

@@ -31,6 +31,7 @@ import {
 } from "phosphor-react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { useEvents } from "../../context/EventContext";
+import EventCountdown from "../../components/EventCountdown";
 
 export default function EventDetailScreen() {
   const theme = useTheme();
@@ -290,6 +291,9 @@ export default function EventDetailScreen() {
               <Text style={styles.eventLocationText}>{event.location}</Text>
             </View>
           )}
+
+          {/* Countdown Timer - only shows if event hasn't started */}
+          <EventCountdown eventDate={event.date} eventTime={event.time} />
         </View>
 
         <View style={styles.attendeeStatsContainer}>
