@@ -139,6 +139,9 @@ describe('CustomFieldsService - Field Definition', () => {
     });
 
     it('should return false for non-existent field', () => {
+      // Mock database to return 0 changes (field not found)
+      mockDb.runSync.mockReturnValueOnce({ changes: 0, lastInsertRowId: 0 });
+
       const result = service.updateField('non-existent-id', {
         name: 'Test',
       });
@@ -155,6 +158,9 @@ describe('CustomFieldsService - Field Definition', () => {
     });
 
     it('should return false for non-existent field', () => {
+      // Mock database to return 0 changes (field not found)
+      mockDb.runSync.mockReturnValueOnce({ changes: 0, lastInsertRowId: 0 });
+
       const result = service.deleteField('non-existent-id');
 
       expect(result).toBe(false);
@@ -326,6 +332,9 @@ describe('CustomFieldsService - Field Values', () => {
     it('should return field value', () => {
       service.setFieldValue('attendee-1', 'field-1', 'Test Value');
       
+      // Mock the database to return the value we just set
+      mockDb.getFirstSync.mockReturnValueOnce({ value: 'Test Value' });
+      
       const value = service.getFieldValue('attendee-1', 'field-1');
 
       expect(value).toBe('Test Value');
@@ -366,6 +375,9 @@ describe('CustomFieldsService - Field Values', () => {
     });
 
     it('should return false for non-existent value', () => {
+      // Mock database to return 0 changes (value not found)
+      mockDb.runSync.mockReturnValueOnce({ changes: 0, lastInsertRowId: 0 });
+
       const result = service.deleteFieldValue('attendee-1', 'non-existent-field');
 
       expect(result).toBe(false);
@@ -439,6 +451,9 @@ describe('CustomFieldsService - Templates', () => {
     });
 
     it('should return false for non-existent template', () => {
+      // Mock database to return 0 changes (template not found)
+      mockDb.runSync.mockReturnValueOnce({ changes: 0, lastInsertRowId: 0 });
+
       const result = service.deleteTemplate('non-existent-id');
 
       expect(result).toBe(false);
@@ -447,17 +462,74 @@ describe('CustomFieldsService - Templates', () => {
 
   describe('applyTemplate', () => {
     it('should apply template to event', () => {
+      // First create a template
+      const template = service.createTemplate({
+        name: 'Test Template',
+        description: 'Test template description',
+        fields: [
+          { name: 'Field 1', type: 'text', required: false },
+          { name: 'Field 2', type: 'email', required: true },
+        ],
+      });
+
+      // Mock getTemplate to return the template we just created
+      mockDb.getFirstSync.mockReturnValueOnce({
+        ...template,
+        fields: JSON.stringify(template.fields),
+      });
+
       expect(() => 
-        service.applyTemplate('event-1', 'template-1')
+        service.applyTemplate(template.id, 'event-1')
       ).not.toThrow();
     });
 
     it('should create fields from template', () => {
-      service.applyTemplate('event-1', 'template-1');
-      
-      const fields = service.getFields('event-1');
+      // Create some fields first
+      const field1 = service.createField({
+        event_id: 'template-event',
+        name: 'Field 1',
+        type: 'text',
+        required: false,
+      });
+      const field2 = service.createField({
+        event_id: 'template-event',
+        name: 'Field 2',
+        type: 'email',
+        required: true,
+      });
 
-      expect(fields.length).toBeGreaterThanOrEqual(0);
+      // Create a template with those field IDs
+      const template = service.createTemplate({
+        name: 'Test Template',
+        description: 'Test template description',
+        fields: [field1.id, field2.id],
+      });
+
+      // Mock getTemplate to return the template
+      mockDb.getFirstSync.mockReturnValueOnce({
+        ...template,
+        fields: JSON.stringify(template.fields),
+      });
+
+      // Mock getField calls for each field in the template
+      mockDb.getFirstSync.mockReturnValueOnce({
+        ...field1,
+        required: field1.required ? 1 : 0,
+        options: field1.options ? JSON.stringify(field1.options) : null,
+        validation: field1.validation ? JSON.stringify(field1.validation) : null,
+      });
+      mockDb.getFirstSync.mockReturnValueOnce({
+        ...field2,
+        required: field2.required ? 1 : 0,
+        options: field2.options ? JSON.stringify(field2.options) : null,
+        validation: field2.validation ? JSON.stringify(field2.validation) : null,
+      });
+
+      const createdFields = service.applyTemplate(template.id, 'event-1');
+
+      expect(createdFields.length).toBe(2);
+      expect(createdFields[0].event_id).toBe('event-1');
+      expect(createdFields[1].event_id).toBe('event-1');
     });
   });
 });

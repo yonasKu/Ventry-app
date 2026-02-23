@@ -1,58 +1,57 @@
 // Common mock data for tests
-import { Event, Attendee } from '../../models/Event';
+import { Event as ModelEvent, Attendee as ModelAttendee } from '../../models/Event';
+import { Event, Attendee } from '../../services/DatabaseService';
 
 export const mockEvent: Event = {
   id: 'test-event-1',
-  name: 'Test Event',
+  title: 'Test Event',
   date: '2026-02-20',
   time: '10:00',
   location: 'Test Location',
   notes: 'Test notes',
-  expectedAttendees: 100,
-  attendeeCount: 0,
-  checkedInCount: 0,
-  category: 'Conference',
-  createdAt: new Date('2026-02-20T10:00:00Z').toISOString(),
-  updatedAt: new Date('2026-02-20T10:00:00Z').toISOString(),
+  expected_attendees: '100',
+  attendees_count: 0,
+  checked_in_count: 0,
+  created_at: new Date('2026-02-20T10:00:00Z').toISOString(),
+  updated_at: new Date('2026-02-20T10:00:00Z').toISOString(),
 };
 
 export const mockEvent2: Event = {
   id: 'test-event-2',
-  name: 'Another Event',
+  title: 'Another Event',
   date: '2026-03-15',
   time: '14:00',
   location: 'Another Location',
   notes: 'More notes',
-  expectedAttendees: 50,
-  attendeeCount: 0,
-  checkedInCount: 0,
-  category: 'Workshop',
-  createdAt: new Date('2026-02-20T10:00:00Z').toISOString(),
-  updatedAt: new Date('2026-02-20T10:00:00Z').toISOString(),
+  expected_attendees: '50',
+  attendees_count: 0,
+  checked_in_count: 0,
+  created_at: new Date('2026-02-20T10:00:00Z').toISOString(),
+  updated_at: new Date('2026-02-20T10:00:00Z').toISOString(),
 };
 
 export const mockAttendee: Attendee = {
   id: 'test-attendee-1',
-  eventId: 'test-event-1',
+  event_id: 'test-event-1',
   name: 'John Doe',
   email: 'john@example.com',
   phone: '+1234567890',
-  checkedIn: false,
-  checkInTime: null,
-  createdAt: new Date('2026-02-20T10:00:00Z').toISOString(),
-  updatedAt: new Date('2026-02-20T10:00:00Z').toISOString(),
+  checked_in: false,
+  check_in_time: null,
+  created_at: new Date('2026-02-20T10:00:00Z').toISOString(),
+  updated_at: new Date('2026-02-20T10:00:00Z').toISOString(),
 };
 
 export const mockAttendee2: Attendee = {
   id: 'test-attendee-2',
-  eventId: 'test-event-1',
+  event_id: 'test-event-1',
   name: 'Jane Smith',
   email: 'jane@example.com',
   phone: '+0987654321',
-  checkedIn: true,
-  checkInTime: new Date('2026-02-20T11:00:00Z').toISOString(),
-  createdAt: new Date('2026-02-20T10:00:00Z').toISOString(),
-  updatedAt: new Date('2026-02-20T11:00:00Z').toISOString(),
+  checked_in: true,
+  check_in_time: new Date('2026-02-20T11:00:00Z').toISOString(),
+  created_at: new Date('2026-02-20T10:00:00Z').toISOString(),
+  updated_at: new Date('2026-02-20T11:00:00Z').toISOString(),
 };
 
 export const mockCustomField = {
@@ -96,14 +95,14 @@ export const mockBackupData = {
 export const createMockAttendees = (count: number, eventId: string): Attendee[] => {
   return Array.from({ length: count }, (_, i) => ({
     id: `test-attendee-${i + 1}`,
-    eventId,
+    event_id: eventId,
     name: `Attendee ${i + 1}`,
     email: `attendee${i + 1}@example.com`,
     phone: `+123456789${i}`,
-    checkedIn: i % 2 === 0, // Every other attendee is checked in
-    checkInTime: i % 2 === 0 ? new Date('2026-02-20T11:00:00Z').toISOString() : null,
-    createdAt: new Date('2026-02-20T10:00:00Z').toISOString(),
-    updatedAt: new Date('2026-02-20T10:00:00Z').toISOString(),
+    checked_in: i % 2 === 0, // Every other attendee is checked in
+    check_in_time: i % 2 === 0 ? new Date('2026-02-20T11:00:00Z').toISOString() : null,
+    created_at: new Date('2026-02-20T10:00:00Z').toISOString(),
+    updated_at: new Date('2026-02-20T10:00:00Z').toISOString(),
   }));
 };
 

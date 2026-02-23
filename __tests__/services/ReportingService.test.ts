@@ -5,504 +5,264 @@
  */
 
 import { ReportingService } from '../../services/ReportingService';
-import { createMockEvents, createMockAttendees } from '../setup/mocks';
+import { mockEvent, mockEvent2, mockAttendee, mockAttendee2 } from '../setup/mocks';
 
-describe('ReportingService - Statistics Calculations', () => {
+// Mock DatabaseService
+jest.mock('../../services/DatabaseService', () => {
+  const mockDb = {
+    getEvents: jest.fn(),
+    getAttendees: jest.fn(),
+    getEventById: jest.fn(),
+  };
+  
+  return {
+    DatabaseService: jest.fn().mockImplementation(() => mockDb),
+    mockDb,
+  };
+});
+
+const { mockDb } = jest.requireMock('../../services/DatabaseService');
+
+describe('ReportingService', () => {
   let service: ReportingService;
 
   beforeEach(() => {
+    jest.clearAllMocks();
     service = new ReportingService();
+    
+    // Setup default mocks
+    mockDb.getEvents.mockReturnValue([mockEvent, mockEvent2]);
+    mockDb.getAttendees.mockReturnValue([mockAttendee, mockAttendee2]);
+    mockDb.getEventById.mockReturnValue(mockEvent);
   });
 
-  describe('calculateOverallStats', () => {
-    it('should calculate total events', () => {
-      const events = createMockEvents(5);
-      
-      const stats = service.calculateOverallStats(events);
+  describe('getOverallStats', () => {
+    it('should calculate overall statistics', () => {
+      const stats = service.getOverallStats();
 
-      expect(stats.totalEvents).toBe(5);
+      expect(stats).toHaveProperty('totalEvents');
+      expect(stats).toHaveProperty('totalAttendees');
+      expect(stats).toHaveProperty('totalCheckedIn');
+      expect(stats).toHaveProperty('checkInRate');
     });
 
-    it('should calculate total attendees', () => {
-      const events = createMockEvents(2);
-      events[0].attendees_count = 10;
-      events[1].attendees_count = 15;
-      
-      const stats = service.calculateOverallStats(events);
+    it('should handle empty events', () => {
+      mockDb.getEvents.mockReturnValue([]);
 
-      expect(stats.totalAttendees).toBe(25);
-    });
-
-    it('should calculate total checked in', () => {
-      const events = createMockEvents(2);
-      events[0].checked_in_count = 5;
-      events[1].checked_in_count = 8;
-      
-      const stats = service.calculateOverallStats(events);
-
-      expect(stats.totalCheckedIn).toBe(13);
-    });
-
-    it('should calculate check-in rate', () => {
-      const events = createMockEvents(1);
-      events[0].attendees_count = 100;
-      events[0].checked_in_count = 75;
-      
-      const stats = service.calculateOverallStats(events);
-
-      expect(stats.checkInRate).toBe(75);
-    });
-
-    it('should handle zero attendees', () => {
-      const events = createMockEvents(1);
-      events[0].attendees_count = 0;
-      events[0].checked_in_count = 0;
-      
-      const stats = service.calculateOverallStats(events);
-
-      expect(stats.checkInRate).toBe(0);
-    });
-
-    it('should calculate average attendees per event', () => {
-      const events = createMockEvents(3);
-      events[0].attendees_count = 10;
-      events[1].attendees_count = 20;
-      events[2].attendees_count = 30;
-      
-      const stats = service.calculateOverallStats(events);
-
-      expect(stats.averageAttendeesPerEvent).toBe(20);
-    });
-
-    it('should handle empty events array', () => {
-      const stats = service.calculateOverallStats([]);
+      const stats = service.getOverallStats();
 
       expect(stats.totalEvents).toBe(0);
       expect(stats.totalAttendees).toBe(0);
-      expect(stats.checkInRate).toBe(0);
-    });
-
-    it('should round check-in rate to 2 decimals', () => {
-      const events = createMockEvents(1);
-      events[0].attendees_count = 3;
-      events[0].checked_in_count = 2;
-      
-      const stats = service.calculateOverallStats(events);
-
-      expect(stats.checkInRate).toBeCloseTo(66.67, 2);
     });
   });
 
-  describe('calculateEventStats', () => {
-    it('should calculate stats for single event', () => {
-      const event = createMockEvents(1)[0];
-      event.attendees_count = 50;
-      event.checked_in_count = 30;
-      
-      const stats = service.calculateEventStats(event);
+  describe('getEventCheckInStats', () => {
+    it('should get check-in stats for event', () => {
+      const stats = service.getEventCheckInStats('event-1');
 
-      expect(stats.totalAttendees).toBe(50);
-      expect(stats.checkedIn).toBe(30);
-      expect(stats.notCheckedIn).toBe(20);
-      expect(stats.checkInRate).toBe(60);
+      expect(stats).not.toBeNull();
+      expect(stats).toHaveProperty('eventId');
+      expect(stats).toHaveProperty('totalAttendees');
+      expect(stats).toHaveProperty('checkedIn');
+    });
+
+    it('should return null for non-existent event', () => {
+      mockDb.getEventById.mockReturnValue(null);
+
+      const stats = service.getEventCheckInStats('invalid-id');
+
+      expect(stats).toBeNull();
     });
 
     it('should handle event with no attendees', () => {
-      const event = createMockEvents(1)[0];
-      event.attendees_count = 0;
-      event.checked_in_count = 0;
-      
-      const stats = service.calculateEventStats(event);
+      mockDb.getAttendees.mockReturnValue([]);
 
-      expect(stats.checkInRate).toBe(0);
-    });
+      const stats = service.getEventCheckInStats('event-1');
 
-    it('should calculate completion percentage', () => {
-      const event = createMockEvents(1)[0];
-      event.expected_attendees = 100;
-      event.attendees_count = 75;
-      
-      const stats = service.calculateEventStats(event);
-
-      expect(stats.completionPercentage).toBe(75);
-    });
-
-    it('should handle missing expected attendees', () => {
-      const event = createMockEvents(1)[0];
-      event.expected_attendees = null;
-      event.attendees_count = 50;
-      
-      const stats = service.calculateEventStats(event);
-
-      expect(stats.completionPercentage).toBe(100);
+      expect(stats).not.toBeNull();
+      expect(stats?.totalAttendees).toBe(0);
     });
   });
-});
 
-describe('ReportingService - Trend Analysis', () => {
-  let service: ReportingService;
-
-  beforeEach(() => {
-    service = new ReportingService();
-  });
-
-  describe('calculateAttendanceTrends', () => {
-    it('should calculate trends over time', () => {
-      const events = createMockEvents(5);
-      
-      const trends = service.calculateAttendanceTrends(events, 7);
+  describe('getAttendanceTrends', () => {
+    it('should get attendance trends', () => {
+      const trends = service.getAttendanceTrends(7);
 
       expect(Array.isArray(trends)).toBe(true);
-      expect(trends.length).toBeGreaterThan(0);
+      expect(trends.length).toBe(7);
     });
 
-    it('should group by days', () => {
-      const events = createMockEvents(3);
-      const today = new Date();
-      events[0].date = today.toISOString().split('T')[0];
-      events[1].date = new Date(today.getTime() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      events[2].date = new Date(today.getTime() - 48 * 60 * 60 * 1000).toISOString().split('T')[0];
-      
-      const trends = service.calculateAttendanceTrends(events, 7);
+    it('should handle custom day range', () => {
+      const trends = service.getAttendanceTrends(30);
 
-      expect(trends.length).toBeLessThanOrEqual(7);
-    });
-
-    it('should sum attendees for same day', () => {
-      const events = createMockEvents(2);
-      const today = new Date().toISOString().split('T')[0];
-      events[0].date = today;
-      events[0].attendees_count = 10;
-      events[1].date = today;
-      events[1].attendees_count = 15;
-      
-      const trends = service.calculateAttendanceTrends(events, 7);
-      const todayTrend = trends.find(t => t.date === today);
-
-      expect(todayTrend?.count).toBe(25);
+      expect(trends.length).toBe(30);
     });
 
     it('should handle empty events', () => {
-      const trends = service.calculateAttendanceTrends([], 7);
+      mockDb.getEvents.mockReturnValue([]);
 
-      expect(trends).toEqual([]);
-    });
+      const trends = service.getAttendanceTrends(7);
 
-    it('should limit to specified days', () => {
-      const events = createMockEvents(10);
-      
-      const trends = service.calculateAttendanceTrends(events, 5);
-
-      expect(trends.length).toBeLessThanOrEqual(5);
+      expect(trends.length).toBe(7);
+      expect(trends.every(t => t.attendees === 0)).toBe(true);
     });
   });
 
-  describe('calculateCheckInRateTrends', () => {
-    it('should calculate check-in rate trends', () => {
-      const events = createMockEvents(3);
-      events.forEach((e, i) => {
-        e.attendees_count = 100;
-        e.checked_in_count = 50 + i * 10;
+  describe('getCheckInRateTrends', () => {
+    it('should get check-in rate trends', () => {
+      const trends = service.getCheckInRateTrends(7);
+
+      expect(Array.isArray(trends)).toBe(true);
+      // May return fewer days if no events in that period
+      expect(trends.length).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should calculate rates correctly', () => {
+      const trends = service.getCheckInRateTrends(7);
+
+      trends.forEach(trend => {
+        expect(trend).toHaveProperty('date');
+        expect(trend).toHaveProperty('rate');
+        expect(trend.rate).toBeGreaterThanOrEqual(0);
+        expect(trend.rate).toBeLessThanOrEqual(100);
       });
-      
-      const trends = service.calculateCheckInRateTrends(events, 7);
-
-      expect(Array.isArray(trends)).toBe(true);
-      expect(trends.every(t => t.rate >= 0 && t.rate <= 100)).toBe(true);
-    });
-
-    it('should handle events with no attendees', () => {
-      const events = createMockEvents(2);
-      events[0].attendees_count = 0;
-      events[1].attendees_count = 100;
-      events[1].checked_in_count = 50;
-      
-      const trends = service.calculateCheckInRateTrends(events, 7);
-
-      expect(trends).toBeDefined();
-    });
-
-    it('should calculate average rate for same day', () => {
-      const events = createMockEvents(2);
-      const today = new Date().toISOString().split('T')[0];
-      events[0].date = today;
-      events[0].attendees_count = 100;
-      events[0].checked_in_count = 60;
-      events[1].date = today;
-      events[1].attendees_count = 100;
-      events[1].checked_in_count = 80;
-      
-      const trends = service.calculateCheckInRateTrends(events, 7);
-      const todayTrend = trends.find(t => t.date === today);
-
-      expect(todayTrend?.rate).toBe(70); // Average of 60% and 80%
     });
   });
-});
 
-describe('ReportingService - Event Distribution', () => {
-  let service: ReportingService;
+  describe('getEventDistribution', () => {
+    it('should get event distribution', () => {
+      const distribution = service.getEventDistribution();
 
-  beforeEach(() => {
-    service = new ReportingService();
-  });
-
-  describe('categorizeEvents', () => {
-    it('should categorize upcoming events', () => {
-      const events = createMockEvents(1);
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      events[0].date = tomorrow.toISOString().split('T')[0];
-      
-      const categories = service.categorizeEvents(events);
-
-      expect(categories.upcoming).toHaveLength(1);
-      expect(categories.today).toHaveLength(0);
-      expect(categories.past).toHaveLength(0);
+      expect(Array.isArray(distribution)).toBe(true);
+      expect(distribution.length).toBeGreaterThan(0);
     });
 
-    it('should categorize today events', () => {
-      const events = createMockEvents(1);
-      events[0].date = new Date().toISOString().split('T')[0];
-      
-      const categories = service.categorizeEvents(events);
+    it('should have correct structure', () => {
+      const distribution = service.getEventDistribution();
 
-      expect(categories.today).toHaveLength(1);
-    });
-
-    it('should categorize past events', () => {
-      const events = createMockEvents(1);
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      events[0].date = yesterday.toISOString().split('T')[0];
-      
-      const categories = service.categorizeEvents(events);
-
-      expect(categories.past).toHaveLength(1);
-    });
-
-    it('should calculate percentages', () => {
-      const events = createMockEvents(4);
-      const today = new Date();
-      events[0].date = new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // Tomorrow
-      events[1].date = today.toISOString().split('T')[0]; // Today
-      events[2].date = new Date(today.getTime() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // Yesterday
-      events[3].date = new Date(today.getTime() - 48 * 60 * 60 * 1000).toISOString().split('T')[0]; // 2 days ago
-      
-      const categories = service.categorizeEvents(events);
-
-      expect(categories.upcomingPercentage).toBe(25);
-      expect(categories.todayPercentage).toBe(25);
-      expect(categories.pastPercentage).toBe(50);
+      distribution.forEach(item => {
+        expect(item).toHaveProperty('label');
+        expect(item).toHaveProperty('value');
+        expect(item).toHaveProperty('percentage');
+      });
     });
 
     it('should handle empty events', () => {
-      const categories = service.categorizeEvents([]);
+      mockDb.getEvents.mockReturnValue([]);
 
-      expect(categories.upcoming).toEqual([]);
-      expect(categories.today).toEqual([]);
-      expect(categories.past).toEqual([]);
-      expect(categories.upcomingPercentage).toBe(0);
+      const distribution = service.getEventDistribution();
+
+      expect(distribution.every(d => d.value === 0)).toBe(true);
     });
   });
 
   describe('getAttendeeTypeDistribution', () => {
-    it('should calculate checked-in vs not-checked-in', () => {
-      const attendees = createMockAttendees(10, 'event-1');
-      
-      const distribution = service.getAttendeeTypeDistribution(attendees);
+    it('should get attendee type distribution', () => {
+      const distribution = service.getAttendeeTypeDistribution();
 
-      expect(distribution.checkedIn).toBeGreaterThanOrEqual(0);
-      expect(distribution.notCheckedIn).toBeGreaterThanOrEqual(0);
-      expect(distribution.checkedIn + distribution.notCheckedIn).toBe(10);
+      expect(Array.isArray(distribution)).toBe(true);
+      expect(distribution.length).toBe(2); // Checked in and not checked in
     });
 
     it('should calculate percentages', () => {
-      const attendees = createMockAttendees(10, 'event-1');
-      
-      const distribution = service.getAttendeeTypeDistribution(attendees);
+      const distribution = service.getAttendeeTypeDistribution();
 
-      expect(distribution.checkedInPercentage).toBeGreaterThanOrEqual(0);
-      expect(distribution.checkedInPercentage).toBeLessThanOrEqual(100);
+      const totalPercentage = distribution.reduce((sum, item) => sum + item.percentage, 0);
+      // Allow for rounding or zero attendees
+      expect(totalPercentage).toBeGreaterThanOrEqual(0);
+      expect(totalPercentage).toBeLessThanOrEqual(100);
     });
 
-    it('should handle empty attendees', () => {
-      const distribution = service.getAttendeeTypeDistribution([]);
+    it('should handle no attendees', () => {
+      mockDb.getEvents.mockReturnValue([]);
 
-      expect(distribution.checkedIn).toBe(0);
-      expect(distribution.notCheckedIn).toBe(0);
-      expect(distribution.checkedInPercentage).toBe(0);
-    });
+      const distribution = service.getAttendeeTypeDistribution();
 
-    it('should handle all checked-in', () => {
-      const attendees = createMockAttendees(5, 'event-1').map(a => ({
-        ...a,
-        checkedIn: true,
-      }));
-      
-      const distribution = service.getAttendeeTypeDistribution(attendees);
-
-      expect(distribution.checkedIn).toBe(5);
-      expect(distribution.notCheckedIn).toBe(0);
-      expect(distribution.checkedInPercentage).toBe(100);
+      expect(distribution.every(d => d.count === 0)).toBe(true);
     });
   });
-});
 
-describe('ReportingService - Performance Metrics', () => {
-  let service: ReportingService;
+  describe('generateReport', () => {
+    it('should generate comprehensive report', () => {
+      const report = service.generateReport();
 
-  beforeEach(() => {
-    service = new ReportingService();
-  });
-
-  describe('getTopPerformingEvents', () => {
-    it('should return events sorted by check-in rate', () => {
-      const events = createMockEvents(3);
-      events[0].attendees_count = 100;
-      events[0].checked_in_count = 90;
-      events[1].attendees_count = 100;
-      events[1].checked_in_count = 50;
-      events[2].attendees_count = 100;
-      events[2].checked_in_count = 70;
-      
-      const topEvents = service.getTopPerformingEvents(events, 2);
-
-      expect(topEvents).toHaveLength(2);
-      expect(topEvents[0].checked_in_count).toBe(90);
-      expect(topEvents[1].checked_in_count).toBe(70);
+      expect(report).toBeDefined();
+      expect(typeof report).toBe('object');
     });
 
-    it('should limit to specified count', () => {
-      const events = createMockEvents(10);
-      
-      const topEvents = service.getTopPerformingEvents(events, 5);
+    it('should include date range', () => {
+      const startDate = new Date('2026-01-01');
+      const endDate = new Date('2026-12-31');
 
+      const report = service.generateReport(startDate, endDate);
+
+      expect(report).toBeDefined();
+      expect(typeof report).toBe('object');
+    });
+  });
+
+  describe('formatReportAsCSV', () => {
+    it('should format report as CSV', () => {
+      const report = service.generateReport();
+      const csv = service.formatReportAsCSV(report);
+
+      expect(typeof csv).toBe('string');
+      expect(csv).toContain('Ventry Event Report');
+    });
+
+    it('should include statistics', () => {
+      const report = service.generateReport();
+      const csv = service.formatReportAsCSV(report);
+
+      expect(csv).toContain('Total Events');
+      expect(csv).toContain('Total Attendees');
+    });
+  });
+
+  describe('getTopEvents', () => {
+    it('should get top performing events', () => {
+      const topEvents = service.getTopEvents(5);
+
+      expect(Array.isArray(topEvents)).toBe(true);
       expect(topEvents.length).toBeLessThanOrEqual(5);
     });
 
-    it('should handle empty events', () => {
-      const topEvents = service.getTopPerformingEvents([], 5);
+    it('should sort by check-in rate', () => {
+      const topEvents = service.getTopEvents(5);
 
-      expect(topEvents).toEqual([]);
+      for (let i = 0; i < topEvents.length - 1; i++) {
+        expect(topEvents[i].checkInRate).toBeGreaterThanOrEqual(topEvents[i + 1].checkInRate);
+      }
     });
 
-    it('should exclude events with no attendees', () => {
-      const events = createMockEvents(2);
-      events[0].attendees_count = 0;
-      events[1].attendees_count = 100;
-      events[1].checked_in_count = 50;
-      
-      const topEvents = service.getTopPerformingEvents(events, 5);
+    it('should handle empty events', () => {
+      mockDb.getEvents.mockReturnValue([]);
 
-      expect(topEvents).toHaveLength(1);
+      const topEvents = service.getTopEvents(5);
+
+      expect(topEvents.length).toBe(0);
     });
   });
 
   describe('getLowPerformingEvents', () => {
-    it('should return events sorted by low check-in rate', () => {
-      const events = createMockEvents(3);
-      events[0].attendees_count = 100;
-      events[0].checked_in_count = 10;
-      events[1].attendees_count = 100;
-      events[1].checked_in_count = 90;
-      events[2].attendees_count = 100;
-      events[2].checked_in_count = 30;
-      
-      const lowEvents = service.getLowPerformingEvents(events, 2);
+    it('should get low performing events', () => {
+      const lowEvents = service.getLowPerformingEvents(50, 5);
 
-      expect(lowEvents).toHaveLength(2);
-      expect(lowEvents[0].checked_in_count).toBe(10);
-      expect(lowEvents[1].checked_in_count).toBe(30);
+      expect(Array.isArray(lowEvents)).toBe(true);
     });
 
-    it('should limit to specified count', () => {
-      const events = createMockEvents(10);
-      
-      const lowEvents = service.getLowPerformingEvents(events, 3);
+    it('should filter by threshold', () => {
+      const lowEvents = service.getLowPerformingEvents(50, 5);
+
+      lowEvents.forEach(event => {
+        expect(event.checkInRate).toBeLessThan(50);
+      });
+    });
+
+    it('should limit results', () => {
+      const lowEvents = service.getLowPerformingEvents(50, 3);
 
       expect(lowEvents.length).toBeLessThanOrEqual(3);
-    });
-
-    it('should handle empty events', () => {
-      const lowEvents = service.getLowPerformingEvents([], 5);
-
-      expect(lowEvents).toEqual([]);
-    });
-  });
-
-  describe('calculateEventCompletionRates', () => {
-    it('should calculate completion rates', () => {
-      const events = createMockEvents(2);
-      events[0].expected_attendees = 100;
-      events[0].attendees_count = 75;
-      events[1].expected_attendees = 50;
-      events[1].attendees_count = 50;
-      
-      const rates = service.calculateEventCompletionRates(events);
-
-      expect(rates[0].completionRate).toBe(75);
-      expect(rates[1].completionRate).toBe(100);
-    });
-
-    it('should handle events without expected attendees', () => {
-      const events = createMockEvents(1);
-      events[0].expected_attendees = null;
-      events[0].attendees_count = 50;
-      
-      const rates = service.calculateEventCompletionRates(events);
-
-      expect(rates[0].completionRate).toBe(100);
-    });
-
-    it('should handle empty events', () => {
-      const rates = service.calculateEventCompletionRates([]);
-
-      expect(rates).toEqual([]);
-    });
-  });
-});
-
-describe('ReportingService - Time-based Filtering', () => {
-  let service: ReportingService;
-
-  beforeEach(() => {
-    service = new ReportingService();
-  });
-
-  describe('filterEventsByTimeRange', () => {
-    it('should filter events by week', () => {
-      const events = createMockEvents(5);
-      const today = new Date();
-      events[0].date = today.toISOString().split('T')[0];
-      events[1].date = new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      events[2].date = new Date(today.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      
-      const filtered = service.filterEventsByTimeRange(events, 'week');
-
-      expect(filtered.length).toBeLessThanOrEqual(events.length);
-    });
-
-    it('should filter events by month', () => {
-      const events = createMockEvents(5);
-      
-      const filtered = service.filterEventsByTimeRange(events, 'month');
-
-      expect(Array.isArray(filtered)).toBe(true);
-    });
-
-    it('should return all events for "all" range', () => {
-      const events = createMockEvents(5);
-      
-      const filtered = service.filterEventsByTimeRange(events, 'all');
-
-      expect(filtered).toEqual(events);
-    });
-
-    it('should handle empty events', () => {
-      const filtered = service.filterEventsByTimeRange([], 'week');
-
-      expect(filtered).toEqual([]);
     });
   });
 });

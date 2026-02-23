@@ -213,3 +213,133 @@ export function isFuture(dateString: string | Date): boolean {
     return false;
   }
 }
+
+/**
+ * Parse a date string to a Date object
+ * @param dateString - Date string to parse
+ * @returns Date object or null if invalid
+ */
+export function parseDate(dateString: string): Date | null {
+  try {
+    const date = parseISO(dateString);
+    return isValid(date) ? date : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Parse a time string to a Date object (with today's date)
+ * @param timeString - Time string in HH:MM or HH:MM:SS format
+ * @returns Date object or null if invalid
+ */
+export function parseTime(timeString: string): Date | null {
+  try {
+    const parts = timeString.split(':');
+    if (parts.length < 2) return null;
+    
+    const hours = parseInt(parts[0], 10);
+    const minutes = parseInt(parts[1], 10);
+    
+    if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+      return null;
+    }
+    
+    const date = new Date();
+    date.setHours(hours);
+    date.setMinutes(minutes);
+    date.setSeconds(parts[2] ? parseInt(parts[2], 10) : 0);
+    
+    return date;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Check if a date is valid
+ * @param date - Date object or string to validate
+ * @returns True if valid date
+ */
+export function isValidDate(date: Date | string): boolean {
+  try {
+    const dateObj = typeof date === 'string' ? parseISO(date) : date;
+    return isValid(dateObj);
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Check if a time string is valid
+ * @param timeString - Time string in HH:MM or HH:MM:SS format
+ * @returns True if valid time
+ */
+export function isValidTime(timeString: string): boolean {
+  return parseTime(timeString) !== null;
+}
+
+/**
+ * Get a date N days ago from today
+ * @param days - Number of days ago
+ * @returns Date object
+ */
+export function getDateDaysAgo(days: number): Date {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return date;
+}
+
+/**
+ * Get a date N days from now
+ * @param days - Number of days from now
+ * @returns Date object
+ */
+export function getDateDaysFromNow(days: number): Date {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date;
+}
+
+/**
+ * Check if two dates are on the same day
+ * @param date1 - First date
+ * @param date2 - Second date
+ * @returns True if same day
+ */
+export function isSameDay(date1: Date | string, date2: Date | string): boolean {
+  try {
+    const d1 = typeof date1 === 'string' ? parseISO(date1) : date1;
+    const d2 = typeof date2 === 'string' ? parseISO(date2) : date2;
+    
+    if (!isValid(d1) || !isValid(d2)) return false;
+    
+    return (
+      d1.getDate() === d2.getDate() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getFullYear() === d2.getFullYear()
+    );
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Calculate the difference in days between two dates
+ * @param date1 - First date
+ * @param date2 - Second date
+ * @returns Number of days difference (positive if date2 is after date1)
+ */
+export function getDaysDifference(date1: Date | string, date2: Date | string): number {
+  try {
+    const d1 = typeof date1 === 'string' ? parseISO(date1) : date1;
+    const d2 = typeof date2 === 'string' ? parseISO(date2) : date2;
+    
+    if (!isValid(d1) || !isValid(d2)) return 0;
+    
+    const diffInMs = d2.getTime() - d1.getTime();
+    return Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+  } catch (error) {
+    return 0;
+  }
+}

@@ -5,39 +5,26 @@
  * Covers: creation, reading, updating, deleting, check-ins, and data integrity.
  */
 
-import { DatabaseService, initDatabase, Event, Attendee } from '../../services/DatabaseService';
+import { DatabaseService, Event, Attendee } from '../../services/DatabaseService';
 import { mockEvent, mockAttendee, createMockEvents, createMockAttendees } from '../setup/mocks';
 
-// Mock the database
-let mockDb: any;
-let mockRunSync: jest.Mock;
-let mockGetAllSync: jest.Mock;
-let mockGetFirstSync: jest.Mock;
-let mockWithTransactionSync: jest.Mock;
+// Get the global mock database
+const mockDb = (global as any).mockDb;
+const mockRunSync = mockDb.runSync;
+const mockGetAllSync = mockDb.getAllSync;
+const mockGetFirstSync = mockDb.getFirstSync;
+const mockWithTransactionSync = mockDb.withTransactionSync;
 
 // Setup before each test
 beforeEach(() => {
   // Reset all mocks
   jest.clearAllMocks();
   
-  // Create mock functions
-  mockRunSync = jest.fn().mockReturnValue({ changes: 1, lastInsertRowId: 1 });
-  mockGetAllSync = jest.fn().mockReturnValue([]);
-  mockGetFirstSync = jest.fn().mockReturnValue(null);
-  mockWithTransactionSync = jest.fn((callback) => callback());
-  
-  // Mock the database object
-  mockDb = {
-    runSync: mockRunSync,
-    getAllSync: mockGetAllSync,
-    getFirstSync: mockGetFirstSync,
-    withTransactionSync: mockWithTransactionSync,
-  };
-  
-  // Mock expo-sqlite module
-  jest.mock('expo-sqlite', () => ({
-    openDatabaseSync: jest.fn(() => mockDb),
-  }));
+  // Reset mock return values
+  mockRunSync.mockReturnValue({ changes: 1, lastInsertRowId: 1 });
+  mockGetAllSync.mockReturnValue([]);
+  mockGetFirstSync.mockReturnValue(null);
+  mockWithTransactionSync.mockImplementation((callback) => callback());
 });
 
 describe('DatabaseService - Event Operations', () => {
@@ -393,6 +380,7 @@ describe('DatabaseService - Attendee Operations', () => {
   describe('checkInAttendee', () => {
     it('should check in attendee successfully', () => {
       const mockAttendeeRaw = { ...mockAttendee, checked_in: 0 };
+      // Mock getAttendeeById call
       mockGetFirstSync.mockReturnValueOnce(mockAttendeeRaw);
       mockWithTransactionSync.mockImplementationOnce((callback) => callback());
       mockRunSync.mockReturnValue({ changes: 1 });
@@ -402,6 +390,10 @@ describe('DatabaseService - Attendee Operations', () => {
       expect(result).toBeDefined();
       expect(result?.checked_in).toBe(true);
       expect(result?.check_in_time).toBeDefined();
+      expect(mockRunSync).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE attendees SET checked_in'),
+        expect.any(Array)
+      );
     });
 
     it('should return existing attendee if already checked in', () => {
@@ -586,8 +578,16 @@ describe('DatabaseService - Data Integrity', () => {
 
     service.addAttendee(mockEvent.id, attendeeData);
 
-    // Verify both insert and count update were called
-    expect(mockRunSync).toHaveBeenCalledTimes(2);
+    // Verify that SQL operations were called (insert attendee and update event count)
+    expect(mockRunSync).toHaveBeenCalled();
+    expect(mockRunSync).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO attendees'),
+      expect.any(Array)
+    );
+    expect(mockRunSync).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE events SET attendees_count'),
+      expect.any(Array)
+    );
   });
 
   it('should maintain accurate check-in counts', () => {

@@ -33,14 +33,14 @@ describe('FilterService - Filter Types', () => {
       
       const result = FilterService.applyFilter(attendees, 'checked-in');
 
-      expect(result.every(a => a.checkedIn === true)).toBe(true);
+      expect(result.every(a => a.checked_in === true)).toBe(true);
       expect(result.length).toBeGreaterThan(0);
     });
 
     it('should return empty array if no checked-in attendees', () => {
       const attendees = createMockAttendees(10, 'event-1').map(a => ({
         ...a,
-        checkedIn: false,
+        checked_in: false,
       }));
       
       const result = FilterService.applyFilter(attendees, 'checked-in');
@@ -55,14 +55,14 @@ describe('FilterService - Filter Types', () => {
       
       const result = FilterService.applyFilter(attendees, 'not-checked-in');
 
-      expect(result.every(a => a.checkedIn !== true)).toBe(true);
+      expect(result.every(a => a.checked_in !== true)).toBe(true);
       expect(result.length).toBeGreaterThan(0);
     });
 
     it('should return empty array if all checked-in', () => {
       const attendees = createMockAttendees(10, 'event-1').map(a => ({
         ...a,
-        checkedIn: true,
+        checked_in: true,
       }));
       
       const result = FilterService.applyFilter(attendees, 'not-checked-in');
@@ -306,7 +306,7 @@ describe('FilterService - Combined Filters', () => {
       
       const result = FilterService.combineFilters(attendees, '', 'checked-in');
 
-      expect(result.every(a => a.checkedIn === true)).toBe(true);
+      expect(result.every(a => a.checked_in === true)).toBe(true);
     });
 
     it('should apply filter before text search', () => {
@@ -314,7 +314,7 @@ describe('FilterService - Combined Filters', () => {
       
       const result = FilterService.combineFilters(attendees, 'Attendee', 'checked-in');
 
-      expect(result.every(a => a.checkedIn === true)).toBe(true);
+      expect(result.every(a => a.checked_in === true)).toBe(true);
       expect(result.every(a => a.name.includes('Attendee'))).toBe(true);
     });
 
@@ -385,7 +385,7 @@ describe('FilterService - Filter Counts', () => {
 
     it('should return correct count for checked-in filter', () => {
       const attendees = createMockAttendees(10, 'event-1');
-      const checkedInCount = attendees.filter(a => a.checkedIn).length;
+      const checkedInCount = attendees.filter(a => a.checked_in).length;
       
       const count = FilterService.getFilterCount(attendees, 'checked-in');
 
@@ -401,7 +401,7 @@ describe('FilterService - Filter Counts', () => {
     it('should return 0 if no matches', () => {
       const attendees = createMockAttendees(10, 'event-1').map(a => ({
         ...a,
-        checkedIn: false,
+        checked_in: false,
       }));
       
       const count = FilterService.getFilterCount(attendees, 'checked-in');

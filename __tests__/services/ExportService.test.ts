@@ -1,423 +1,318 @@
 /**
  * ExportService Tests
  * 
- * Tests CSV export functionality for events and attendees.
+ * Tests export functionality for events and attendees.
  */
 
-import { ExportService } from '../../services/ExportService';
-import { mockEvent, mockAttendee, createMockEvents, createMockAttendees } from '../setup/mocks';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
+import { ExportService, ExportFormat, ExportOptions } from '../../services/ExportService';
+import { mockEvent, mockAttendee, mockAttendee2, createMockEvents, createMockAttendees } from '../setup/mocks';
+import CsvService from '../../services/CsvService';
 
-jest.mock('expo-file-system');
-jest.mock('expo-sharing');
+// Mock DatabaseService
+jest.mock('../../services/DatabaseService', () => {
+  const mockDb = {
+    getEventById: jest.fn(),
+    getAttendees: jest.fn(),
+  };
+  
+  return {
+    DatabaseService: jest.fn().mockImplementation(() => mockDb),
+    mockDb, // Export for test access
+  };
+});
 
-describe('ExportService - CSV Export', () => {
+// Mock CsvService
+jest.mock('../../services/CsvService', () => ({
+  __esModule: true,
+  default: {
+    exportAttendeesToCsv: jest.fn().mockResolvedValue('file://attendees.csv'),
+    exportEventToCsv: jest.fn().mockResolvedValue('file://event.csv'),
+    shareCsvFile: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
+// Mock expo-file-system File class
+jest.mock('expo-file-system', () => ({
+  Paths: {
+    document: '/mock/documents',
+  },
+  File: jest.fn().mockImplementation((pathOrDir: string, filename?: string) => {
+    // Handle both File(path) and File(dir, filename) constructors
+    const fullPath = filename ? `${pathOrDir}/${filename}` : pathOrDir;
+    return {
+      uri: fullPath,
+      write: jest.fn().mockResolvedValue(undefined),
+      text: jest.fn().mockResolvedValue('mock file content'),
+    };
+  }),
+}));
+
+// Mock expo-sharing
+jest.mock('expo-sharing', () => ({
+  shareAsync: jest.fn().mockResolvedValue(undefined),
+  isAvailableAsync: jest.fn().mockResolvedValue(true),
+}));
+
+// Mock Alert
+jest.mock('react-native', () => ({
+  Platform: { OS: 'ios' },
+  Alert: {
+    alert: jest.fn(),
+  },
+}));
+
+// Get mock database from the mocked module
+const { mockDb } = jest.requireMock('../../services/DatabaseService');
+
+describe('ExportService', () => {
   let service: ExportService;
 
   beforeEach(() => {
     jest.clearAllMocks();
     service = new ExportService();
+    
+    // Setup default mock returns
+    mockDb.getEventById.mockReturnValue(mockEvent);
+    mockDb.getAttendees.mockReturnValue([mockAttendee, mockAttendee2]);
   });
 
-  describe('exportEventsToCSV', () => {
-    it('should export events to CSV', async () => {
-      const events = createMockEvents(3);
-      (FileSystem.writeAsStringAsync as jest.Mock).mockResolvedValue(undefined);
-      (Sharing.shareAsync as jest.Mock).mockResolvedValue(undefined);
+  describe('exportAttendees', () => {
+    it('should export attendees to CSV by default', async () => {
+      const filePath = await service.exportAttendees('event-1');
 
-      await service.exportEventsToCSV(events);
-
-      expect(FileSystem.writeAsStringAsync).toHaveBeenCalled();
+      expect(mockDb.getEventById).toHaveBeenCalledWith('event-1');
+      expect(mockDb.getAttendees).toHaveBeenCalledWith('event-1');
+      expect(CsvService.exportAttendeesToCsv).toHaveBeenCalled();
+      expect(filePath).toBe('file://attendees.csv');
     });
 
-    it('should include CSV headers', async () => {
-      const events = createMockEvents(1);
-      (FileSystem.writeAsStringAsync as jest.Mock).mockImplementation((uri, content) => {
-        expect(content).toContain('Title');
-        expect(content).toContain('Date');
-        expect(content).toContain('Time');
-        expect(content).toContain('Location');
-        return Promise.resolve();
-      });
+    it('should throw error if event not found', async () => {
+      mockDb.getEventById.mockReturnValue(null);
 
-      await service.exportEventsToCSV(events);
+      await expect(service.exportAttendees('invalid-id')).rejects.toThrow('Event not found');
     });
 
-    it('should include event data', async () => {
-      const events = [mockEvent];
-      (FileSystem.writeAsStringAsync as jest.Mock).mockImplementation((uri, content) => {
-        expect(content).toContain(mockEvent.title);
-        expect(content).toContain(mockEvent.date);
-        return Promise.resolve();
-      });
+    it('should throw error if no attendees to export', async () => {
+      mockDb.getAttendees.mockReturnValue([]);
 
-      await service.exportEventsToCSV(events);
+      await expect(service.exportAttendees('event-1')).rejects.toThrow('No attendees to export');
     });
 
-    it('should escape special characters', async () => {
-      const events = [{
-        ...mockEvent,
-        title: 'Event with "quotes" and, commas',
-      }];
-      (FileSystem.writeAsStringAsync as jest.Mock).mockImplementation((uri, content) => {
-        expect(content).toContain('"Event with ""quotes"" and, commas"');
-        return Promise.resolve();
-      });
-
-      await service.exportEventsToCSV(events);
-    });
-
-    it('should handle empty events array', async () => {
-      (FileSystem.writeAsStringAsync as jest.Mock).mockResolvedValue(undefined);
-
-      await service.exportEventsToCSV([]);
-
-      expect(FileSystem.writeAsStringAsync).toHaveBeenCalled();
-    });
-
-    it('should generate unique filename', async () => {
-      const events = createMockEvents(1);
-      (FileSystem.writeAsStringAsync as jest.Mock).mockImplementation((uri) => {
-        expect(uri).toContain('events_');
-        expect(uri).toContain('.csv');
-        return Promise.resolve();
-      });
-
-      await service.exportEventsToCSV(events);
-    });
-
-    it('should share file after export', async () => {
-      const events = createMockEvents(1);
-      (FileSystem.writeAsStringAsync as jest.Mock).mockResolvedValue(undefined);
-      (Sharing.shareAsync as jest.Mock).mockResolvedValue(undefined);
-
-      await service.exportEventsToCSV(events);
-
-      expect(Sharing.shareAsync).toHaveBeenCalled();
-    });
-
-    it('should throw error if file write fails', async () => {
-      const events = createMockEvents(1);
-      (FileSystem.writeAsStringAsync as jest.Mock).mockRejectedValue(new Error('Write failed'));
-
-      await expect(service.exportEventsToCSV(events)).rejects.toThrow('Write failed');
-    });
-  });
-
-  describe('exportAttendeesToCSV', () => {
-    it('should export attendees to CSV', async () => {
-      const attendees = createMockAttendees(5, 'event-1');
-      (FileSystem.writeAsStringAsync as jest.Mock).mockResolvedValue(undefined);
-      (Sharing.shareAsync as jest.Mock).mockResolvedValue(undefined);
-
-      await service.exportAttendeesToCSV(attendees, 'Test Event');
-
-      expect(FileSystem.writeAsStringAsync).toHaveBeenCalled();
-    });
-
-    it('should include CSV headers', async () => {
-      const attendees = createMockAttendees(1, 'event-1');
-      (FileSystem.writeAsStringAsync as jest.Mock).mockImplementation((uri, content) => {
-        expect(content).toContain('Name');
-        expect(content).toContain('Email');
-        expect(content).toContain('Phone');
-        expect(content).toContain('Checked In');
-        return Promise.resolve();
-      });
-
-      await service.exportAttendeesToCSV(attendees, 'Test Event');
-    });
-
-    it('should include attendee data', async () => {
-      const attendees = [mockAttendee];
-      (FileSystem.writeAsStringAsync as jest.Mock).mockImplementation((uri, content) => {
-        expect(content).toContain(mockAttendee.name);
-        expect(content).toContain(mockAttendee.email || '');
-        return Promise.resolve();
-      });
-
-      await service.exportAttendeesToCSV(attendees, 'Test Event');
-    });
-
-    it('should format boolean values', async () => {
-      const attendees = [
-        { ...mockAttendee, checkedIn: true },
-        { ...mockAttendee, id: 'attendee-2', checkedIn: false },
-      ];
-      (FileSystem.writeAsStringAsync as jest.Mock).mockImplementation((uri, content) => {
-        expect(content).toContain('Yes');
-        expect(content).toContain('No');
-        return Promise.resolve();
-      });
-
-      await service.exportAttendeesToCSV(attendees, 'Test Event');
-    });
-
-    it('should handle null values', async () => {
-      const attendees = [{
-        ...mockAttendee,
-        email: null,
-        phone: null,
-      }];
-      (FileSystem.writeAsStringAsync as jest.Mock).mockResolvedValue(undefined);
-
-      await expect(service.exportAttendeesToCSV(attendees, 'Test Event')).resolves.not.toThrow();
-    });
-
-    it('should include event name in filename', async () => {
-      const attendees = createMockAttendees(1, 'event-1');
-      (FileSystem.writeAsStringAsync as jest.Mock).mockImplementation((uri) => {
-        expect(uri).toContain('Test_Event');
-        expect(uri).toContain('attendees_');
-        return Promise.resolve();
-      });
-
-      await service.exportAttendeesToCSV(attendees, 'Test Event');
-    });
-
-    it('should sanitize event name for filename', async () => {
-      const attendees = createMockAttendees(1, 'event-1');
-      (FileSystem.writeAsStringAsync as jest.Mock).mockImplementation((uri) => {
-        expect(uri).not.toContain('/');
-        expect(uri).not.toContain('\\');
-        return Promise.resolve();
-      });
-
-      await service.exportAttendeesToCSV(attendees, 'Test/Event\\Name');
-    });
-
-    it('should handle empty attendees array', async () => {
-      (FileSystem.writeAsStringAsync as jest.Mock).mockResolvedValue(undefined);
-
-      await service.exportAttendeesToCSV([], 'Test Event');
-
-      expect(FileSystem.writeAsStringAsync).toHaveBeenCalled();
-    });
-
-    it('should share file after export', async () => {
-      const attendees = createMockAttendees(1, 'event-1');
-      (FileSystem.writeAsStringAsync as jest.Mock).mockResolvedValue(undefined);
-      (Sharing.shareAsync as jest.Mock).mockResolvedValue(undefined);
-
-      await service.exportAttendeesToCSV(attendees, 'Test Event');
-
-      expect(Sharing.shareAsync).toHaveBeenCalled();
-    });
-  });
-
-  describe('exportCheckInReport', () => {
-    it('should export check-in report', async () => {
-      const attendees = createMockAttendees(10, 'event-1');
-      (FileSystem.writeAsStringAsync as jest.Mock).mockResolvedValue(undefined);
-      (Sharing.shareAsync as jest.Mock).mockResolvedValue(undefined);
-
-      await service.exportCheckInReport(attendees, 'Test Event');
-
-      expect(FileSystem.writeAsStringAsync).toHaveBeenCalled();
-    });
-
-    it('should include statistics in report', async () => {
-      const attendees = createMockAttendees(10, 'event-1');
-      (FileSystem.writeAsStringAsync as jest.Mock).mockImplementation((uri, content) => {
-        expect(content).toContain('Total Attendees');
-        expect(content).toContain('Checked In');
-        expect(content).toContain('Not Checked In');
-        expect(content).toContain('Check-in Rate');
-        return Promise.resolve();
-      });
-
-      await service.exportCheckInReport(attendees, 'Test Event');
-    });
-
-    it('should calculate correct statistics', async () => {
-      const attendees = createMockAttendees(10, 'event-1');
-      const checkedInCount = attendees.filter(a => a.checkedIn).length;
+    it('should export to JSON format', async () => {
+      const options: ExportOptions = { format: ExportFormat.JSON };
       
-      (FileSystem.writeAsStringAsync as jest.Mock).mockImplementation((uri, content) => {
-        expect(content).toContain(`${checkedInCount}`);
-        expect(content).toContain(`${10 - checkedInCount}`);
-        return Promise.resolve();
-      });
+      const filePath = await service.exportAttendees('event-1', options);
 
-      await service.exportCheckInReport(attendees, 'Test Event');
+      expect(filePath).toContain('.json');
+      expect(CsvService.exportAttendeesToCsv).not.toHaveBeenCalled();
     });
 
-    it('should include check-in times', async () => {
-      const attendees = [{
-        ...mockAttendee,
-        checkedIn: true,
-        checkInTime: '2026-02-20T10:00:00Z',
-      }];
-      (FileSystem.writeAsStringAsync as jest.Mock).mockImplementation((uri, content) => {
-        expect(content).toContain('Check-in Time');
-        return Promise.resolve();
-      });
-
-      await service.exportCheckInReport(attendees, 'Test Event');
-    });
-
-    it('should handle attendees without check-in time', async () => {
-      const attendees = [{
-        ...mockAttendee,
-        checkedIn: false,
-        checkInTime: null,
-      }];
-      (FileSystem.writeAsStringAsync as jest.Mock).mockResolvedValue(undefined);
-
-      await expect(service.exportCheckInReport(attendees, 'Test Event')).resolves.not.toThrow();
-    });
-  });
-
-  describe('exportWithCustomFields', () => {
-    it('should export attendees with custom fields', async () => {
-      const attendees = createMockAttendees(2, 'event-1');
-      const customFields = [
-        { id: 'field-1', name: 'Company', key: 'company', type: 'text' },
-        { id: 'field-2', name: 'Job Title', key: 'job_title', type: 'text' },
-      ];
-      (FileSystem.writeAsStringAsync as jest.Mock).mockResolvedValue(undefined);
-
-      await service.exportWithCustomFields(attendees, customFields, 'Test Event');
-
-      expect(FileSystem.writeAsStringAsync).toHaveBeenCalled();
-    });
-
-    it('should include custom field headers', async () => {
-      const attendees = createMockAttendees(1, 'event-1');
-      const customFields = [
-        { id: 'field-1', name: 'Company', key: 'company', type: 'text' },
-      ];
-      (FileSystem.writeAsStringAsync as jest.Mock).mockImplementation((uri, content) => {
-        expect(content).toContain('Company');
-        return Promise.resolve();
-      });
-
-      await service.exportWithCustomFields(attendees, customFields, 'Test Event');
-    });
-
-    it('should include custom field values', async () => {
-      const attendees = createMockAttendees(1, 'event-1');
-      const customFields = [
-        { id: 'field-1', name: 'Company', key: 'company', type: 'text' },
-      ];
-      const customFieldValues = {
-        [attendees[0].id]: { 'field-1': 'Acme Corp' },
+    it('should include check-in status when requested', async () => {
+      const options: ExportOptions = { 
+        format: ExportFormat.CSV,
+        includeCheckInStatus: true 
       };
-      (FileSystem.writeAsStringAsync as jest.Mock).mockImplementation((uri, content) => {
-        expect(content).toContain('Acme Corp');
-        return Promise.resolve();
-      });
 
-      await service.exportWithCustomFields(attendees, customFields, 'Test Event', customFieldValues);
+      await service.exportAttendees('event-1', options);
+
+      expect(CsvService.exportAttendeesToCsv).toHaveBeenCalledWith(
+        expect.any(Array),
+        mockEvent,
+        true
+      );
     });
 
-    it('should handle missing custom field values', async () => {
-      const attendees = createMockAttendees(1, 'event-1');
-      const customFields = [
-        { id: 'field-1', name: 'Company', key: 'company', type: 'text' },
+    it('should exclude check-in status when not requested', async () => {
+      const options: ExportOptions = { 
+        format: ExportFormat.CSV,
+        includeCheckInStatus: false 
+      };
+
+      await service.exportAttendees('event-1', options);
+
+      expect(CsvService.exportAttendeesToCsv).toHaveBeenCalledWith(
+        expect.any(Array),
+        mockEvent,
+        false
+      );
+    });
+
+    it('should filter fields when includeFields is specified', async () => {
+      const options: ExportOptions = { 
+        format: ExportFormat.JSON,
+        includeFields: ['name', 'email']
+      };
+
+      const filePath = await service.exportAttendees('event-1', options);
+
+      expect(filePath).toContain('.json');
+    });
+
+    it('should encrypt file when password is provided', async () => {
+      const options: ExportOptions = { 
+        format: ExportFormat.CSV,
+        password: 'secret123'
+      };
+
+      const filePath = await service.exportAttendees('event-1', options);
+
+      expect(filePath).toContain('.encrypted');
+    });
+  });
+
+  describe('exportEvent', () => {
+    it('should export event to CSV by default', async () => {
+      const filePath = await service.exportEvent('event-1');
+
+      expect(mockDb.getEventById).toHaveBeenCalledWith('event-1');
+      expect(CsvService.exportEventToCsv).toHaveBeenCalledWith(mockEvent);
+      expect(filePath).toBe('file://event.csv');
+    });
+
+    it('should throw error if event not found', async () => {
+      mockDb.getEventById.mockReturnValue(null);
+
+      await expect(service.exportEvent('invalid-id')).rejects.toThrow('Event not found');
+    });
+
+    it('should export to JSON format', async () => {
+      const options: ExportOptions = { format: ExportFormat.JSON };
+      
+      const filePath = await service.exportEvent('event-1', options);
+
+      expect(filePath).toContain('.json');
+      expect(CsvService.exportEventToCsv).not.toHaveBeenCalled();
+    });
+
+    it('should encrypt file when password is provided', async () => {
+      const options: ExportOptions = { 
+        format: ExportFormat.CSV,
+        password: 'secret123'
+      };
+
+      const filePath = await service.exportEvent('event-1', options);
+
+      expect(filePath).toContain('.encrypted');
+    });
+  });
+
+  describe('batchExportEvents', () => {
+    it('should export multiple events', async () => {
+      const events = createMockEvents(3);
+      mockDb.getEventById.mockImplementation((id: string) => 
+        events.find(e => e.id === id) || null
+      );
+      mockDb.getAttendees.mockReturnValue([mockAttendee]);
+
+      const filePath = await service.batchExportEvents(['event-1', 'event-2', 'event-3']);
+
+      expect(mockDb.getEventById).toHaveBeenCalledTimes(3);
+      expect(filePath).toMatch(/batch_export_.*\.csv/);
+    });
+
+    it('should handle missing events gracefully', async () => {
+      mockDb.getEventById.mockReturnValue(null);
+      mockDb.getAttendees.mockReturnValue([]);
+
+      const filePath = await service.batchExportEvents(['invalid-1', 'invalid-2']);
+
+      expect(filePath).toMatch(/batch_export_.*\.csv/);
+    });
+
+    it('should include attendee information', async () => {
+      mockDb.getEventById.mockReturnValue(mockEvent);
+      mockDb.getAttendees.mockReturnValue([mockAttendee, mockAttendee2]);
+
+      const filePath = await service.batchExportEvents(['event-1']);
+
+      expect(mockDb.getAttendees).toHaveBeenCalledWith('event-1');
+      expect(filePath).toBeDefined();
+    });
+  });
+
+  describe('shareFile', () => {
+    it('should share file using CsvService', async () => {
+      await service.shareFile('file://test.csv', 'Test Export');
+
+      expect(CsvService.shareCsvFile).toHaveBeenCalledWith('file://test.csv', 'Test Export');
+    });
+
+    it('should use default title if not provided', async () => {
+      await service.shareFile('file://test.csv');
+
+      expect(CsvService.shareCsvFile).toHaveBeenCalledWith('file://test.csv', 'Share File');
+    });
+  });
+
+  describe('getEventStatistics', () => {
+    it('should calculate event statistics', () => {
+      const attendees = [
+        { ...mockAttendee, checked_in: true },
+        { ...mockAttendee2, checked_in: false },
       ];
-      (FileSystem.writeAsStringAsync as jest.Mock).mockResolvedValue(undefined);
+      mockDb.getAttendees.mockReturnValue(attendees);
 
-      await expect(
-        service.exportWithCustomFields(attendees, customFields, 'Test Event')
-      ).resolves.not.toThrow();
+      const stats = service.getEventStatistics('event-1');
+
+      expect(stats.eventName).toBe(mockEvent.title);
+      expect(stats.totalAttendees).toBe(2);
+      expect(stats.checkedIn).toBe(1);
+      expect(stats.notCheckedIn).toBe(1);
+      expect(stats.checkInRate).toBe('50.0%');
     });
 
-    it('should handle empty custom fields array', async () => {
-      const attendees = createMockAttendees(1, 'event-1');
-      (FileSystem.writeAsStringAsync as jest.Mock).mockResolvedValue(undefined);
+    it('should throw error if event not found', () => {
+      mockDb.getEventById.mockReturnValue(null);
 
-      await service.exportWithCustomFields(attendees, [], 'Test Event');
-
-      expect(FileSystem.writeAsStringAsync).toHaveBeenCalled();
-    });
-  });
-
-  describe('CSV Formatting', () => {
-    it('should escape double quotes', async () => {
-      const events = [{
-        ...mockEvent,
-        title: 'Event with "quotes"',
-      }];
-      (FileSystem.writeAsStringAsync as jest.Mock).mockImplementation((uri, content) => {
-        expect(content).toContain('""quotes""');
-        return Promise.resolve();
-      });
-
-      await service.exportEventsToCSV(events);
+      expect(() => service.getEventStatistics('invalid-id')).toThrow('Event not found');
     });
 
-    it('should wrap fields with commas in quotes', async () => {
-      const events = [{
-        ...mockEvent,
-        title: 'Event, with comma',
-      }];
-      (FileSystem.writeAsStringAsync as jest.Mock).mockImplementation((uri, content) => {
-        expect(content).toContain('"Event, with comma"');
-        return Promise.resolve();
-      });
+    it('should handle zero attendees', () => {
+      mockDb.getAttendees.mockReturnValue([]);
 
-      await service.exportEventsToCSV(events);
+      const stats = service.getEventStatistics('event-1');
+
+      expect(stats.totalAttendees).toBe(0);
+      expect(stats.checkedIn).toBe(0);
+      expect(stats.checkInRate).toBe('0.0%');
     });
 
-    it('should wrap fields with newlines in quotes', async () => {
-      const events = [{
-        ...mockEvent,
-        notes: 'Line 1\nLine 2',
-      }];
-      (FileSystem.writeAsStringAsync as jest.Mock).mockImplementation((uri, content) => {
-        expect(content).toContain('"Line 1\nLine 2"');
-        return Promise.resolve();
-      });
+    it('should group check-ins by hour', () => {
+      const attendees = [
+        { 
+          ...mockAttendee, 
+          checked_in: true, 
+          check_in_time: '2026-02-20T10:30:00Z' 
+        },
+        { 
+          ...mockAttendee2, 
+          checked_in: true, 
+          check_in_time: '2026-02-20T10:45:00Z' 
+        },
+      ];
+      mockDb.getAttendees.mockReturnValue(attendees);
 
-      await service.exportEventsToCSV(events);
-    });
+      const stats = service.getEventStatistics('event-1');
 
-    it('should handle empty strings', async () => {
-      const attendees = [{
-        ...mockAttendee,
-        email: '',
-        phone: '',
-      }];
-      (FileSystem.writeAsStringAsync as jest.Mock).mockResolvedValue(undefined);
-
-      await expect(service.exportAttendeesToCSV(attendees, 'Test')).resolves.not.toThrow();
-    });
-
-    it('should format dates consistently', async () => {
-      const events = [mockEvent];
-      (FileSystem.writeAsStringAsync as jest.Mock).mockImplementation((uri, content) => {
-        expect(content).toContain(mockEvent.date);
-        return Promise.resolve();
-      });
-
-      await service.exportEventsToCSV(events);
+      expect(stats.checkInsByHour).toBeDefined();
+      expect(typeof stats.checkInsByHour).toBe('object');
     });
   });
 
-  describe('Error Handling', () => {
-    it('should throw error if sharing fails', async () => {
-      const events = createMockEvents(1);
-      (FileSystem.writeAsStringAsync as jest.Mock).mockResolvedValue(undefined);
-      (Sharing.shareAsync as jest.Mock).mockRejectedValue(new Error('Sharing failed'));
+  describe('getActiveTasks', () => {
+    it('should return empty array initially', () => {
+      const tasks = service.getActiveTasks();
 
-      await expect(service.exportEventsToCSV(events)).rejects.toThrow('Sharing failed');
+      expect(Array.isArray(tasks)).toBe(true);
+      expect(tasks.length).toBe(0);
     });
+  });
 
-    it('should throw error if file system not available', async () => {
-      const events = createMockEvents(1);
-      (FileSystem.writeAsStringAsync as jest.Mock).mockRejectedValue(new Error('File system error'));
+  describe('getTaskStatus', () => {
+    it('should return undefined for non-existent task', () => {
+      const status = service.getTaskStatus('non-existent-id');
 
-      await expect(service.exportEventsToCSV(events)).rejects.toThrow('File system error');
-    });
-
-    it('should handle invalid data gracefully', async () => {
-      const invalidEvents: any[] = [{ invalid: 'data' }];
-      (FileSystem.writeAsStringAsync as jest.Mock).mockResolvedValue(undefined);
-
-      // Should not throw, but handle gracefully
-      await expect(service.exportEventsToCSV(invalidEvents)).resolves.not.toThrow();
+      expect(status).toBeUndefined();
     });
   });
 });
