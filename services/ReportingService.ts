@@ -1,4 +1,4 @@
-import { DatabaseService, Event, Attendee } from './DatabaseService';
+import { dbService } from './DatabaseService';
 import { format, parseISO, differenceInDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 
 // Types
@@ -62,11 +62,7 @@ export interface ReportData {
 }
 
 export class ReportingService {
-  private db: DatabaseService;
-
-  constructor() {
-    this.db = new DatabaseService();
-  }
+  private db = dbService;
 
   // ==================== Overall Statistics ====================
 

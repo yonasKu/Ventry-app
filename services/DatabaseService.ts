@@ -36,7 +36,7 @@ interface AttendeeRaw extends Omit<Attendee, 'checked_in'> {
 }
 
 // Import SQLite types from expo-sqlite
-import { SQLiteBindParams } from 'expo-sqlite';
+import { SQLiteBindParams, SQLiteDatabase } from 'expo-sqlite';
 
 // SQLite query result type
 interface SQLiteResult {
@@ -44,120 +44,213 @@ interface SQLiteResult {
   changes: number;
 }
 
-// Open SQLite database
-console.log('Opening SQLite database...');
-let db = openDatabaseSync('ventry.db');
-console.log('SQLite database opened successfully');
-
-// Check if a column exists in a table
-function columnExists(tableName: string, columnName: string): boolean {
-  try {
-    const result = db.getFirstSync<{ name: string }>(
-      `PRAGMA table_info(${tableName})`,
-    );
-    if (!result) return false;
-    
-    const columns = db.getAllSync<{ name: string }>(
-      `PRAGMA table_info(${tableName})`,
-    );
-    return columns.some(col => col.name === columnName);
-  } catch (error) {
-    console.error(`Error checking if column ${columnName} exists in ${tableName}:`, error);
-    return false;
-  }
-}
-
-// Migrate database schema
-function migrateDatabase(): void {
-  try {
-    // Check if email column exists in attendees table
-    if (!columnExists('attendees', 'email')) {
-      console.log('Adding email column to attendees table');
-      db.runSync('ALTER TABLE attendees ADD COLUMN email TEXT;');
-    }
-    
-    // Check if phone column exists in attendees table
-    if (!columnExists('attendees', 'phone')) {
-      console.log('Adding phone column to attendees table');
-      db.runSync('ALTER TABLE attendees ADD COLUMN phone TEXT;');
-    }
-    
-    // Check if check_in_time column exists in attendees table
-    if (!columnExists('attendees', 'check_in_time')) {
-      console.log('Adding check_in_time column to attendees table');
-      db.runSync('ALTER TABLE attendees ADD COLUMN check_in_time TEXT;');
-    }
-    
-    // Check if category column exists in events table
-    if (!columnExists('events', 'category')) {
-      console.log('Adding category column to events table');
-      db.runSync('ALTER TABLE events ADD COLUMN category TEXT;');
-    }
-    
-    console.log('Database migration completed successfully');
-  } catch (error) {
-    console.error('Error migrating database:', error);
-    // Don't throw error here, just log it to prevent app crashes
-  }
-}
-
-// Initialize database
-export function initDatabase(): void {
-  console.log('initDatabase function called');
-  try {
-    console.log('Creating events table if not exists...');
-    // Use runSync for non-query statements
-    db.runSync(
-      `CREATE TABLE IF NOT EXISTS events (
-        id TEXT PRIMARY KEY NOT NULL,
-        title TEXT NOT NULL,
-        date TEXT NOT NULL,
-        time TEXT NOT NULL,
-        location TEXT,
-        notes TEXT,
-        expected_attendees INTEGER,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        attendees_count INTEGER DEFAULT 0,
-        checked_in_count INTEGER DEFAULT 0
-      );`
-    );
-    console.log('Creating attendees table if not exists...');
-    // Create attendees table if it doesn't exist
-    db.runSync(
-      `CREATE TABLE IF NOT EXISTS attendees (
-        id TEXT PRIMARY KEY NOT NULL,
-        event_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        email TEXT,
-        phone TEXT,
-        checked_in INTEGER DEFAULT 0, -- 0 for false, 1 for true
-        check_in_time TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
-      );`
-    );
-    // Create indexes if they don't exist
-    db.runSync('CREATE INDEX IF NOT EXISTS idx_event_date_time ON events (date, time);');
-    db.runSync('CREATE INDEX IF NOT EXISTS idx_event_created_at ON events (created_at);');
-    
-    // Run database migration to add new columns to existing tables
-    migrateDatabase();
-
-    console.log('Database initialized successfully');
-  } catch (error) {
-    console.error('Error initializing database:', error);
-    throw error;
-  }
-}
-
 // CRUD operations
 export class DatabaseService {
+  private static instance: DatabaseService;
+  private db: SQLiteDatabase;
+  private migrated: boolean = false;
+
+  private constructor(dbName: string = 'ventry.db') {
+    console.log('Opening SQLite database...');
+    this.db = openDatabaseSync(dbName);
+    console.log('SQLite database opened successfully');
+    this.initDatabase();
+    this.migrateDatabase();
+  }
+
+  public static getInstance(): DatabaseService {
+    if (!DatabaseService.instance) {
+      DatabaseService.instance = new DatabaseService();
+    }
+    return DatabaseService.instance;
+  }
+
+  public closeSync(): void {
+    try {
+      if (this.db) {
+        this.db.closeSync();
+        console.log('Database closed successfully');
+      }
+    } catch (error) {
+      console.error('Error closing database:', error);
+    }
+  }
+
+  // Check if a column exists in a table
+  private columnExists(tableName: string, columnName: string): boolean {
+    try {
+      const result = this.db.getFirstSync<{ name: string }>(
+        `PRAGMA table_info(${tableName})`,
+      );
+      if (!result) return false;
+      
+      const columns = this.db.getAllSync<{ name: string }>(
+        `PRAGMA table_info(${tableName})`,
+      );
+      return columns.some((col: { name: string }) => col.name === columnName);
+    } catch (error) {
+      console.error(`Error checking if column ${columnName} exists in ${tableName}:`, error);
+      return false;
+    }
+  }
+
+  // Migrate database schema
+  private migrateDatabase(): void {
+    if (this.migrated) return; // Skip if already migrated
+    
+    try {
+      // Check if email column exists in attendees table
+      if (!this.columnExists('attendees', 'email')) {
+        console.log('Adding email column to attendees table');
+        this.db.runSync('ALTER TABLE attendees ADD COLUMN email TEXT;');
+      }
+      
+      // Check if phone column exists in attendees table
+      if (!this.columnExists('attendees', 'phone')) {
+        console.log('Adding phone column to attendees table');
+        this.db.runSync('ALTER TABLE attendees ADD COLUMN phone TEXT;');
+      }
+      
+      // Check if check_in_time column exists in attendees table
+      if (!this.columnExists('attendees', 'check_in_time')) {
+        console.log('Adding check_in_time column to attendees table');
+        this.db.runSync('ALTER TABLE attendees ADD COLUMN check_in_time TEXT;');
+      }
+      
+      // Check if category column exists in events table
+      if (!this.columnExists('events', 'category')) {
+        console.log('Adding category column to events table');
+        this.db.runSync('ALTER TABLE events ADD COLUMN category TEXT;');
+      }
+      
+      this.migrated = true;
+      console.log('Database migration completed successfully');
+    } catch (error) {
+      console.error('Error migrating database:', error);
+      // Don't throw error here, just log it to prevent app crashes
+    }
+  }
+
+  // Initialize database
+  private initDatabase(): void {
+    console.log('initDatabase function called');
+    try {
+      console.log('Creating events table if not exists...');
+      // Use runSync for non-query statements
+      this.db.runSync(
+        `CREATE TABLE IF NOT EXISTS events (
+          id TEXT PRIMARY KEY NOT NULL,
+          title TEXT NOT NULL,
+          date TEXT NOT NULL,
+          time TEXT NOT NULL,
+          location TEXT,
+          notes TEXT,
+          expected_attendees INTEGER,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          attendees_count INTEGER DEFAULT 0,
+          checked_in_count INTEGER DEFAULT 0
+        );`
+      );
+      console.log('Creating attendees table if not exists...');
+      // Create attendees table if it doesn't exist
+      this.db.runSync(
+        `CREATE TABLE IF NOT EXISTS attendees (
+          id TEXT PRIMARY KEY NOT NULL,
+          event_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          email TEXT,
+          phone TEXT,
+          checked_in INTEGER DEFAULT 0, -- 0 for false, 1 for true
+          check_in_time TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+        );`
+      );
+      
+      // Create indexes if they don't exist
+      this.db.runSync('CREATE INDEX IF NOT EXISTS idx_event_date_time ON events (date, time);');
+      this.db.runSync('CREATE INDEX IF NOT EXISTS idx_event_created_at ON events (created_at);');
+      
+      // Add indexes for foreign keys (CRITICAL FIX #3)
+      this.db.runSync('CREATE INDEX IF NOT EXISTS idx_attendees_event_id ON attendees (event_id);');
+      this.db.runSync('CREATE INDEX IF NOT EXISTS idx_attendees_checked_in ON attendees (checked_in);');
+
+      console.log('Database initialized successfully');
+    } catch (error) {
+      console.error('Error initializing database:', error);
+      throw error;
+    }
+  }
+
+  // Validation methods (CRITICAL FIX #2)
+  private validateEvent(eventData: Omit<Event, 'id' | 'created_at' | 'updated_at' | 'attendees_count' | 'checked_in_count'>): void {
+    if (!eventData.title || eventData.title.trim() === '') {
+      throw new Error('Please enter an event name');
+    }
+    
+    if (eventData.title.length > 255) {
+      throw new Error('Event name is too long (maximum 255 characters)');
+    }
+    
+    if (!eventData.date || !this.isValidDate(eventData.date)) {
+      throw new Error('Please select a valid date for your event');
+    }
+    
+    if (!eventData.time || !this.isValidTime(eventData.time)) {
+      throw new Error('Please select a valid time for your event');
+    }
+  }
+
+  private isValidDate(date: string): boolean {
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(date)) return false;
+    const d = new Date(date);
+    return d instanceof Date && !isNaN(d.getTime());
+  }
+
+  private isValidTime(time: string): boolean {
+    // Accept both HH:MM and HH:MM:SS formats
+    const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/;
+    return timeRegex.test(time);
+  }
+
+  private validateAttendee(attendeeData: { name: string; email?: string; phone?: string }): void {
+    if (!attendeeData.name || attendeeData.name.trim() === '') {
+      throw new Error('Please enter the attendee name');
+    }
+    
+    if (attendeeData.name.length > 255) {
+      throw new Error('Attendee name is too long (maximum 255 characters)');
+    }
+    
+    if (attendeeData.email && !this.isValidEmail(attendeeData.email)) {
+      throw new Error('Please enter a valid email address');
+    }
+    
+    if (attendeeData.phone && !this.isValidPhone(attendeeData.phone)) {
+      throw new Error('Please enter a valid phone number');
+    }
+  }
+
+  private isValidEmail(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }
+
+  private isValidPhone(phone: string): boolean {
+    const phoneRegex = /^[\d\s\-\+\(\)]+$/;
+    return phoneRegex.test(phone) && phone.replace(/\D/g, '').length >= 10;
+  }
+
   // --- Synchronous methods ---
 
   // Create (Add) Event - Synchronous
   addEvent(eventData: Omit<Event, 'id' | 'created_at' | 'updated_at' | 'attendees_count' | 'checked_in_count'>): Event {
+    // Validate input (CRITICAL FIX #2)
+    this.validateEvent(eventData);
+    
     const newId = nanoid();
     const now = new Date().toISOString();
     const newEvent: Event = {
@@ -191,7 +284,7 @@ export class DatabaseService {
       ];
       
       // Execute the SQL query
-      const result = db.runSync(
+      const result = this.db.runSync(
         `INSERT INTO events (id, title, date, time, location, notes, expected_attendees, category, created_at, updated_at, attendees_count, checked_in_count)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
         params
@@ -207,7 +300,7 @@ export class DatabaseService {
   getEvents(): Event[] {
     try {
       // Use getAllSync for SELECT queries returning multiple rows
-      const results = db.getAllSync<Event>(
+      const results = this.db.getAllSync<Event>(
         'SELECT * FROM events ORDER BY date DESC, time DESC;'
       );
       return results;
@@ -221,7 +314,7 @@ export class DatabaseService {
   getEventById(id: string): (Event & { attendees?: Attendee[] }) | null {
     try {
       // Use getFirstSync for SELECT queries expecting one row or null
-      const result = db.getFirstSync<Event>(
+      const result = this.db.getFirstSync<Event>(
         'SELECT * FROM events WHERE id = ?;',
         [id]
       );
@@ -280,8 +373,8 @@ export class DatabaseService {
     values.push(id); // Add id for the WHERE clause
 
     try {
-      // Use the correct SQLite API - db.runSync takes SQL string and parameters array
-      const result = db.runSync(
+      // Use the correct SQLite API - this.db.runSync takes SQL string and parameters array
+      const result = this.db.runSync(
         `UPDATE events SET ${setClause}, updated_at = ? WHERE id = ?;`,
         values
       ) as SQLiteResult;
@@ -292,14 +385,43 @@ export class DatabaseService {
     }
   }
 
-  // Delete Event - Synchronous
+  // Delete Event - Synchronous (CRITICAL FIX #3 - Explicit cascade delete)
   deleteEvent(id: string): boolean {
     try {
-      const result = db.runSync(
-        'DELETE FROM events WHERE id = ?;',
-        [id]
-      );
-      return result.changes > 0; // Check if any rows were affected
+      let success = false;
+      
+      this.db.withTransactionSync(() => {
+        // 1. Delete custom field values for all attendees
+        this.db.runSync(
+          `DELETE FROM custom_field_values 
+           WHERE attendee_id IN (
+             SELECT id FROM attendees WHERE event_id = ?
+           );`,
+          [id]
+        );
+        
+        // 2. Delete custom fields for this event
+        this.db.runSync(
+          'DELETE FROM custom_fields WHERE event_id = ?;',
+          [id]
+        );
+        
+        // 3. Delete attendees
+        this.db.runSync(
+          'DELETE FROM attendees WHERE event_id = ?;',
+          [id]
+        );
+        
+        // 4. Finally delete the event
+        const result = this.db.runSync(
+          'DELETE FROM events WHERE id = ?;',
+          [id]
+        );
+        
+        success = result.changes > 0;
+      });
+      
+      return success;
     } catch (error) {
       console.error('Error deleting event:', error);
       throw error;
@@ -383,6 +505,9 @@ export class DatabaseService {
 
   // Add Attendee to an Event - Synchronous
   addAttendee(eventId: string, attendeeData: { name: string, email?: string, phone?: string }): Attendee {
+    // Validate input (CRITICAL FIX #2)
+    this.validateAttendee(attendeeData);
+    
     const newId = nanoid();
     const now = new Date().toISOString();
     const newAttendee: Attendee = {
@@ -397,13 +522,10 @@ export class DatabaseService {
     };
 
     try {
-      // First, ensure the columns exist by running a migration
-      migrateDatabase();
-      
-      db.withTransactionSync(() => {
+      this.db.withTransactionSync(() => {
         try {
           // Try to insert with all columns
-          db.runSync(
+          this.db.runSync(
             'INSERT INTO attendees (id, event_id, name, email, phone, checked_in, check_in_time, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);',
             [
               newAttendee.id,
@@ -420,7 +542,7 @@ export class DatabaseService {
         } catch (error) {
           // Fallback to basic insert if the columns don't exist
           console.warn('Falling back to basic attendee insert:', error);
-          db.runSync(
+          this.db.runSync(
             'INSERT INTO attendees (id, event_id, name, checked_in, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?);',
             [
               newAttendee.id,
@@ -433,7 +555,7 @@ export class DatabaseService {
           );
         }
         // Increment the attendee count for the event
-        db.runSync(
+        this.db.runSync(
           'UPDATE events SET attendees_count = attendees_count + 1, updated_at = ? WHERE id = ?;',
           [now, eventId]
         );
@@ -449,10 +571,10 @@ export class DatabaseService {
   getAttendees(eventId: string): Attendee[] {
     try {
       // Fetch raw data, checked_in will be 0 or 1
-      const rawAttendees = db.getAllSync<AttendeeRaw>('SELECT * FROM attendees WHERE event_id = ? ORDER BY name COLLATE NOCASE;', [eventId]);
+      const rawAttendees = this.db.getAllSync<AttendeeRaw>('SELECT * FROM attendees WHERE event_id = ? ORDER BY name COLLATE NOCASE;', [eventId]);
 
       // Map raw data to the Attendee interface with boolean checked_in
-      const attendees = rawAttendees.map(att => ({
+      const attendees = rawAttendees.map((att: AttendeeRaw) => ({
         ...att,
         checked_in: att.checked_in === 1, // Convert 1 to true, 0 to false
       }));
@@ -467,7 +589,7 @@ export class DatabaseService {
   // Get a single Attendee by ID - Synchronous
   getAttendeeById(attendeeId: string): Attendee | null {
     try {
-      const rawAttendee = db.getFirstSync<AttendeeRaw>(
+      const rawAttendee = this.db.getFirstSync<AttendeeRaw>(
         'SELECT * FROM attendees WHERE id = ?;',
         [attendeeId]
       );
@@ -501,7 +623,7 @@ export class DatabaseService {
   }
 
   // Check-in an Attendee for an Event - Synchronous
-  checkInAttendee(attendeeId: string, eventIdFromQR: string): Attendee | null {
+  checkInAttendee(attendeeId: string, eventIdFromQR?: string): Attendee | null {
     const now = new Date().toISOString();
     
     try {
@@ -517,13 +639,11 @@ export class DatabaseService {
 
       console.log(`Found attendee: ${existingAttendee.name}, event_id: ${existingAttendee.event_id}`);
       
-      // If no event ID is provided, use the attendee's registered event ID
-      const effectiveEventId = eventIdFromQR || existingAttendee.event_id;
-      
-      // Validate that the attendee belongs to the event we're checking into
-      if (existingAttendee.event_id !== effectiveEventId) {
-        console.warn(`Attendee ${attendeeId} (event ${existingAttendee.event_id}) is not registered for event ${effectiveEventId}.`);
-        return null; // Attendee not registered for this event
+      // If event ID provided, validate attendee belongs to that event
+      if (eventIdFromQR && existingAttendee.event_id !== eventIdFromQR) {
+        throw new Error(
+          `Attendee ${attendeeId} is not registered for event ${eventIdFromQR}`
+        );
       }
 
       if (existingAttendee.checked_in) {
@@ -532,14 +652,14 @@ export class DatabaseService {
       }
 
       let successfulCheckIn = false;
-      db.withTransactionSync(() => {
-        const updateResult = db.runSync(
+      this.db.withTransactionSync(() => {
+        const updateResult = this.db.runSync(
           'UPDATE attendees SET checked_in = ?, check_in_time = ?, updated_at = ? WHERE id = ?;',
           [1, now, now, attendeeId] // 1 for true
         );
 
         if (updateResult.changes > 0) {
-          db.runSync(
+          this.db.runSync(
             'UPDATE events SET checked_in_count = checked_in_count + 1, updated_at = ? WHERE id = ?;',
             [now, existingAttendee.event_id]
           );
@@ -572,27 +692,27 @@ export class DatabaseService {
     let success = false;
     try {
       // Fetch attendee first to get event_id and checked_in status for count updates
-      const attendee = db.getFirstSync<AttendeeRaw>('SELECT event_id, checked_in FROM attendees WHERE id = ?;', [attendeeId]);
+      const attendee = this.db.getFirstSync<AttendeeRaw>('SELECT event_id, checked_in FROM attendees WHERE id = ?;', [attendeeId]);
 
       if (!attendee) {
          console.warn(`Attendee with ID ${attendeeId} not found for deletion.`);
          return false; // Attendee doesn't exist
       }
 
-      db.withTransactionSync(() => {
+      this.db.withTransactionSync(() => {
          // Delete the attendee
-         const deleteResult = db.runSync('DELETE FROM attendees WHERE id = ?;', [attendeeId]);
+         const deleteResult = this.db.runSync('DELETE FROM attendees WHERE id = ?;', [attendeeId]);
 
          if (deleteResult.changes > 0) {
            // Decrement the total attendee count for the event
-           db.runSync(
+           this.db.runSync(
              'UPDATE events SET attendees_count = attendees_count - 1, updated_at = ? WHERE id = ?;',
              [now, attendee.event_id]
            );
 
            // If the attendee was checked in, decrement the checked_in count as well
            if (attendee.checked_in === 1) {
-             db.runSync(
+             this.db.runSync(
                'UPDATE events SET checked_in_count = checked_in_count - 1, updated_at = ? WHERE id = ?;',
                [now, attendee.event_id]
              );
@@ -665,4 +785,15 @@ export class DatabaseService {
       }, 0);
     });
   }
+}
+
+
+// Export singleton instance
+export const dbService = DatabaseService.getInstance();
+
+// Backward compatibility: export initDatabase function
+export function initDatabase(): void {
+  // This is now handled by the DatabaseService constructor
+  // Keeping this for backward compatibility
+  DatabaseService.getInstance();
 }

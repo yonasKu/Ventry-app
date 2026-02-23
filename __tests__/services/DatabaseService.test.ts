@@ -181,6 +181,9 @@ describe('DatabaseService - Event Operations', () => {
     });
 
     it('should return true when no fields to update', () => {
+      // Clear previous calls from initialization
+      mockRunSync.mockClear();
+      
       const result = service.updateEvent(mockEvent.id, {});
 
       expect(result).toBe(true);
@@ -223,7 +226,10 @@ describe('DatabaseService - Event Operations', () => {
     });
 
     it('should return false when event does not exist', () => {
-      mockRunSync.mockReturnValueOnce({ changes: 0 });
+      // Mock transaction callback
+      mockWithTransactionSync.mockImplementationOnce((callback) => callback());
+      // Mock all the delete operations returning 0 changes
+      mockRunSync.mockReturnValue({ changes: 0 });
 
       const result = service.deleteEvent('non-existent-id');
 
@@ -415,13 +421,13 @@ describe('DatabaseService - Attendee Operations', () => {
       expect(result).toBeNull();
     });
 
-    it('should return null if attendee not registered for event', () => {
+    it('should throw error if attendee not registered for event', () => {
       const mockAttendeeRaw = { ...mockAttendee, event_id: 'different-event-id', checked_in: 0 };
       mockGetFirstSync.mockReturnValueOnce(mockAttendeeRaw);
 
-      const result = service.checkInAttendee(mockAttendee.id, mockEvent.id);
-
-      expect(result).toBeNull();
+      expect(() => {
+        service.checkInAttendee(mockAttendee.id, mockEvent.id);
+      }).toThrow('Attendee test-attendee-1 is not registered for event test-event-1');
     });
 
     it('should increment event checked_in_count', () => {
@@ -596,9 +602,20 @@ describe('DatabaseService - Data Integrity', () => {
     mockWithTransactionSync.mockImplementationOnce((callback) => callback());
     mockRunSync.mockReturnValue({ changes: 1 });
 
+    // Clear previous calls
+    mockRunSync.mockClear();
+
     service.checkInAttendee(mockAttendee.id, mockEvent.id);
 
     // Verify both check-in update and count update were called
     expect(mockRunSync).toHaveBeenCalledTimes(2);
+    expect(mockRunSync).toHaveBeenCalledWith(
+      'UPDATE attendees SET checked_in = ?, check_in_time = ?, updated_at = ? WHERE id = ?;',
+      expect.any(Array)
+    );
+    expect(mockRunSync).toHaveBeenCalledWith(
+      'UPDATE events SET checked_in_count = checked_in_count + 1, updated_at = ? WHERE id = ?;',
+      expect.any(Array)
+    );
   });
 });

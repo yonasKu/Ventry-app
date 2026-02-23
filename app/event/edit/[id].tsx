@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, StatusBar } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CaretLeft, Check, Calendar, Clock, Users, NotePencil, Tag } from 'phosphor-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../../../context/ThemeContext';
@@ -91,14 +91,14 @@ export default function EditEventScreen() {
     });
   };
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
+  const handleDateChange = (_event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
     if (selectedDate) {
       setEventDate(selectedDate);
     }
   };
 
-  const handleTimeChange = (event: any, selectedTime?: Date) => {
+  const handleTimeChange = (_event: any, selectedTime?: Date) => {
     setShowTimePicker(false);
     if (selectedTime) {
       setEventTime(selectedTime);
@@ -107,16 +107,16 @@ export default function EditEventScreen() {
 
   const handleUpdateEvent = async () => {
     if (!eventName.trim()) {
-      Alert.alert('Error', 'Event name is required');
+      Alert.alert('Required Field', 'Please enter an event name to continue.');
       return;
     }
 
     setIsSubmitting(true);
     
     try {
-      // Format date and time as ISO strings for SQLite
-      const dateString = eventDate.toISOString().split('T')[0];
-      const timeString = eventTime.toISOString().split('T')[1].substring(0, 8);
+      // Format date and time as strings for SQLite
+      const dateString = eventDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      const timeString = eventTime.toTimeString().split(' ')[0].substring(0, 5); // HH:MM
       
       // Update the event in the database
       await updateEvent(id, {
@@ -129,10 +129,19 @@ export default function EditEventScreen() {
         category: eventCategory || undefined
       });
       
-      // Navigate back to the event details screen
-      router.back();
+      Alert.alert(
+        'Success',
+        'Your event has been updated successfully!',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
     } catch (error) {
-      Alert.alert('Error', 'Failed to update event. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+      Alert.alert(
+        'Unable to Update Event', 
+        errorMessage.includes('required') || errorMessage.includes('Invalid') 
+          ? errorMessage 
+          : 'Something went wrong while updating your event. Please try again.'
+      );
       console.error('Error updating event:', error);
     } finally {
       setIsSubmitting(false);
@@ -141,63 +150,67 @@ export default function EditEventScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
-        <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
-        <View style={[styles.header, { backgroundColor: theme.colors.primary, paddingTop: insets.top }]}>
-          <TouchableOpacity 
-            style={styles.backButton} 
-            onPress={() => router.back()}
-          >
-            <CaretLeft size={24} color="white" weight="regular" />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: 'white' }]}>Edit Event</Text>
-          <View style={{ width: 40 }} />
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.primary }} edges={['top']}>
+        <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
+          <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+          <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
+            <TouchableOpacity 
+              style={styles.backButton} 
+              onPress={() => router.back()}
+            >
+              <CaretLeft size={24} color="white" weight="regular" />
+            </TouchableOpacity>
+            <Text style={[styles.headerTitle, { color: 'white' }]}>Edit Event</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+          </View>
         </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (error) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
-        <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
-        <View style={[styles.header, { backgroundColor: theme.colors.primary, paddingTop: insets.top }]}>
-          <TouchableOpacity 
-            style={styles.backButton} 
-            onPress={() => router.back()}
-          >
-            <CaretLeft size={24} color="white" weight="regular" />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: 'white' }]}>Edit Event</Text>
-          <View style={{ width: 40 }} />
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.primary }} edges={['top']}>
+        <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
+          <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+          <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
+            <TouchableOpacity 
+              style={styles.backButton} 
+              onPress={() => router.back()}
+            >
+              <CaretLeft size={24} color="white" weight="regular" />
+            </TouchableOpacity>
+            <Text style={[styles.headerTitle, { color: 'white' }]}>Edit Event</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          <View style={styles.errorContainer}>
+            <Text style={[styles.errorText, { color: theme.colors.error }]}>
+              {error}
+            </Text>
+            <TouchableOpacity 
+              style={[styles.retryButton, { backgroundColor: theme.colors.primary }]}
+              onPress={loadEvent}
+            >
+              <Text style={[styles.retryButtonText, { color: 'white' }]}>Retry</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-        <View style={styles.errorContainer}>
-          <Text style={[styles.errorText, { color: theme.colors.error }]}>
-            {error}
-          </Text>
-          <TouchableOpacity 
-            style={[styles.retryButton, { backgroundColor: theme.colors.primary }]}
-            onPress={loadEvent}
-          >
-            <Text style={[styles.retryButtonText, { color: 'white' }]}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.primary }} edges={['top']}>
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
           <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
-          <View style={[styles.header, { backgroundColor: theme.colors.primary, paddingTop: insets.top }]}>
+          <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
           <TouchableOpacity 
             style={styles.backButton} 
             onPress={() => router.back()}
@@ -220,8 +233,12 @@ export default function EditEventScreen() {
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
-          <View style={styles.formCard}>
+        <ScrollView 
+          style={styles.formContainer} 
+          contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.formCard, { backgroundColor: theme.colors.surface }]}>
             <View style={[styles.inputGroup, { borderBottomColor: theme.colors.border }]}>
               <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Event Name *</Text>
               <TextInput
@@ -378,7 +395,7 @@ export default function EditEventScreen() {
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -442,7 +459,6 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   formCard: {
-    backgroundColor: 'white',
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,

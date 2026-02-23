@@ -101,6 +101,7 @@ export default function BackupScreen() {
             try {
               setLoading(true);
               const deletedCount = await backupService.cleanupOldBackups(30);
+              await loadBackupHistory(); // Refresh the backup history
               Alert.alert('Success', `Deleted ${deletedCount} old backup file(s)`);
             } catch (error) {
               Alert.alert('Error', handleError(error));

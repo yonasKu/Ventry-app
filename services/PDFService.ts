@@ -2,7 +2,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Paths, File } from 'expo-file-system';
 import { format } from 'date-fns';
-import { DatabaseService, Event, Attendee } from './DatabaseService';
+import { dbService, Event, Attendee } from './DatabaseService';
 import ReportingService, { ReportData, CheckInStats } from './ReportingService';
 
 // PDF Options Interface
@@ -25,11 +25,10 @@ export interface PDFGenerationResult {
 }
 
 export class PDFService {
-  private dbService: DatabaseService;
+  private dbService = dbService;
   private reportingService: typeof ReportingService;
 
   constructor() {
-    this.dbService = new DatabaseService();
     this.reportingService = ReportingService;
   }
 

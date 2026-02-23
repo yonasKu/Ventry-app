@@ -2,7 +2,8 @@ import { Paths, File, Directory } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DatabaseService, Event, Attendee } from './DatabaseService';
+import CryptoJS from 'crypto-js';
+import { dbService, Event, Attendee } from './DatabaseService';
 import { CustomFieldsService, CustomField, CustomFieldValue, FieldTemplate } from './CustomFieldsService';
 import { format } from 'date-fns';
 
@@ -51,20 +52,51 @@ const BACKUP_HISTORY_KEY = '@ventry:backup_history';
 const DEVICE_NAME_KEY = '@ventry:device_name';
 
 export class BackupService {
-  private db: DatabaseService;
+  private db = dbService;
   private customFieldsService: CustomFieldsService;
 
   constructor() {
-    this.db = new DatabaseService();
     this.customFieldsService = new CustomFieldsService();
   }
 
   // ==================== Backup ====================
 
   /**
+   * Encrypt backup data with password
+   */
+  private async encryptBackup(content: string, password: string): Promise<string> {
+    try {
+      const encrypted = CryptoJS.AES.encrypt(content, password).toString();
+      return encrypted;
+    } catch (error) {
+      console.error('Error encrypting backup:', error);
+      throw new Error('Failed to encrypt backup');
+    }
+  }
+
+  /**
+   * Decrypt backup data with password
+   */
+  private async decryptBackup(content: string, password: string): Promise<string> {
+    try {
+      const decrypted = CryptoJS.AES.decrypt(content, password);
+      const plaintext = decrypted.toString(CryptoJS.enc.Utf8);
+      
+      if (!plaintext) {
+        throw new Error('Invalid password or corrupted backup');
+      }
+      
+      return plaintext;
+    } catch (error) {
+      console.error('Error decrypting backup:', error);
+      throw new Error('Failed to decrypt backup: Invalid password or corrupted file');
+    }
+  }
+
+  /**
    * Create a full database backup
    */
-  async createBackup(): Promise<string> {
+  async createBackup(password?: string): Promise<string> {
     try {
       // Gather all data
       const events = this.db.getEvents();
@@ -126,8 +158,16 @@ export class BackupService {
       const filename = `ventry_backup_${timestamp}.json`;
       const file = new File(Paths.document, filename);
       
+      // Prepare content
+      let fileContent = JSON.stringify(backupData, null, 2);
+      
+      // Encrypt if password provided
+      if (password) {
+        fileContent = await this.encryptBackup(fileContent, password);
+      }
+      
       // Write backup file
-      await file.write(JSON.stringify(backupData, null, 2));
+      await file.write(fileContent);
       
       // Get file info
       const fileSize = file.size;
@@ -202,11 +242,19 @@ export class BackupService {
   /**
    * Restore from backup file
    */
-  async restoreFromFile(fileUri: string): Promise<RestoreResult> {
+  async restoreFromFile(fileUri: string, password?: string): Promise<RestoreResult> {
     try {
       // Read backup file
       const file = new File(fileUri);
-      const content = await file.text();
+      let content = await file.text();
+      
+      // Try to decrypt if it looks encrypted
+      if (content.startsWith('U2FsdGVkX1')) { // CryptoJS AES encrypted format
+        if (!password) {
+          throw new Error('This backup is encrypted. Please provide a password.');
+        }
+        content = await this.decryptBackup(content, password);
+      }
       
       const backupData: BackupData = JSON.parse(content);
       
@@ -226,106 +274,139 @@ export class BackupService {
         errors: [],
       };
       
-      // Restore templates first
-      for (const template of backupData.data.field_templates || []) {
-        try {
-          // Check if template already exists
-          const existing = this.customFieldsService.getTemplates().find(t => t.name === template.name);
-          if (!existing) {
-            this.customFieldsService.createTemplate({
-              name: template.name,
-              description: template.description,
-              fields: template.fields,
-              is_default: template.is_default,
-            });
-            result.imported.templates++;
-          }
-        } catch (error) {
-          result.errors.push(`Failed to restore template ${template.name}: ${error}`);
-        }
-      }
-      
-      // Restore custom fields
-      for (const field of backupData.data.custom_fields || []) {
-        try {
-          // Check if field already exists
-          const existing = this.customFieldsService.getField(field.id);
-          if (!existing) {
-            this.customFieldsService.createField({
-              name: field.name,
-              key: field.key,
-              type: field.type,
-              required: field.required,
-              default_value: field.default_value,
-              options: field.options,
-              validation: field.validation,
-              display_order: field.display_order,
-              event_id: field.event_id,
-              template_id: field.template_id,
-            });
-            result.imported.custom_fields++;
-          }
-        } catch (error) {
-          result.errors.push(`Failed to restore custom field ${field.name}: ${error}`);
-        }
-      }
-      
-      // Restore events
-      for (const event of backupData.data.events) {
-        try {
-          // Check if event already exists
-          const existing = this.db.getEventById(event.id);
-          if (!existing) {
-            this.db.addEvent({
-              title: event.title,
-              date: event.date,
-              time: event.time,
-              location: event.location,
-              notes: event.notes,
-              expected_attendees: event.expected_attendees,
-            });
-            result.imported.events++;
-          }
-        } catch (error) {
-          result.errors.push(`Failed to restore event ${event.title}: ${error}`);
-        }
-      }
-      
-      // Restore attendees
-      for (const attendee of backupData.data.attendees) {
-        try {
-          // Check if event exists
-          const event = this.db.getEventById(attendee.event_id);
-          if (event) {
-            // Check if attendee already exists
-            const existingAttendees = this.db.getAttendees(attendee.event_id);
-            const exists = existingAttendees.find(a => a.id === attendee.id);
-            
-            if (!exists) {
-              this.db.addAttendee(attendee.event_id, {
-                name: attendee.name,
-                email: attendee.email || undefined,
-                phone: attendee.phone || undefined,
+      // Wrap entire restore in transaction for atomicity
+      try {
+        // Note: We can't use db.withTransactionSync here because we're calling multiple services
+        // Each service operation should handle its own transactions
+        
+        // Restore templates first
+        for (const template of backupData.data.field_templates || []) {
+          try {
+            const existing = this.customFieldsService.getTemplates().find(t => t.name === template.name);
+            if (!existing) {
+              this.customFieldsService.createTemplate({
+                name: template.name,
+                description: template.description,
+                fields: template.fields,
+                is_default: template.is_default,
               });
-              result.imported.attendees++;
+              result.imported.templates++;
             }
+          } catch (error) {
+            result.errors.push(`Failed to restore template ${template.name}: ${error}`);
           }
-        } catch (error) {
-          result.errors.push(`Failed to restore attendee ${attendee.name}: ${error}`);
         }
-      }
-      
-      // Restore custom field values
-      for (const fieldValue of backupData.data.custom_field_values || []) {
-        try {
-          this.customFieldsService.setFieldValue(
-            fieldValue.attendee_id,
-            fieldValue.field_id,
-            fieldValue.value
-          );
-        } catch (error) {
-          // Silently fail for field values (attendee or field might not exist)
+        
+        // Restore custom fields
+        for (const field of backupData.data.custom_fields || []) {
+          try {
+            const existing = this.customFieldsService.getField(field.id);
+            if (!existing) {
+              this.customFieldsService.createField({
+                name: field.name,
+                key: field.key,
+                type: field.type,
+                required: field.required,
+                default_value: field.default_value,
+                options: field.options,
+                validation: field.validation,
+                display_order: field.display_order,
+                event_id: field.event_id,
+                template_id: field.template_id,
+              });
+              result.imported.custom_fields++;
+            }
+          } catch (error) {
+            result.errors.push(`Failed to restore custom field ${field.name}: ${error}`);
+          }
         }
+        
+        // Restore events (check for duplicates by ID and unique fields)
+        for (const event of backupData.data.events) {
+          try {
+            const existingById = this.db.getEventById(event.id);
+            const existingByDetails = this.db.getEvents().find(e => 
+              e.title === event.title && 
+              e.date === event.date && 
+              e.time === event.time
+            );
+            
+            if (!existingById && !existingByDetails) {
+              this.db.addEvent({
+                title: event.title,
+                date: event.date,
+                time: event.time,
+                location: event.location,
+                notes: event.notes,
+                expected_attendees: event.expected_attendees,
+              });
+              result.imported.events++;
+            } else {
+              result.errors.push(`Event "${event.title}" already exists, skipped`);
+            }
+          } catch (error) {
+            result.errors.push(`Failed to restore event ${event.title}: ${error}`);
+          }
+        }
+        
+        // Restore attendees
+        for (const attendee of backupData.data.attendees) {
+          try {
+            const event = this.db.getEventById(attendee.event_id);
+            if (event) {
+              const existingAttendees = this.db.getAttendees(attendee.event_id);
+              const exists = existingAttendees.find(a => a.id === attendee.id);
+              
+              if (!exists) {
+                this.db.addAttendee(attendee.event_id, {
+                  name: attendee.name,
+                  email: attendee.email || undefined,
+                  phone: attendee.phone || undefined,
+                });
+                result.imported.attendees++;
+              }
+            } else {
+              result.errors.push(`Event not found for attendee ${attendee.name}`);
+            }
+          } catch (error) {
+            result.errors.push(`Failed to restore attendee ${attendee.name}: ${error}`);
+          }
+        }
+        
+        // Restore custom field values with proper error handling
+        let fieldValuesRestored = 0;
+        for (const fieldValue of backupData.data.custom_field_values || []) {
+          try {
+            // Check if attendee exists
+            const attendeeExists = this.db.getAttendees(fieldValue.attendee_id).length > 0;
+            if (!attendeeExists) {
+              result.errors.push(`Attendee ${fieldValue.attendee_id} not found for field value`);
+              continue;
+            }
+            
+            // Check if field exists
+            const fieldExists = this.customFieldsService.getField(fieldValue.field_id);
+            if (!fieldExists) {
+              result.errors.push(`Field ${fieldValue.field_id} not found for field value`);
+              continue;
+            }
+            
+            this.customFieldsService.setFieldValue(
+              fieldValue.attendee_id,
+              fieldValue.field_id,
+              fieldValue.value
+            );
+            fieldValuesRestored++;
+          } catch (error) {
+            result.errors.push(`Failed to restore field value: ${error}`);
+          }
+        }
+        
+        console.log(`Restored ${fieldValuesRestored} custom field values`);
+        
+      } catch (error) {
+        console.error('Error during restore:', error);
+        throw error;
       }
       
       result.success = result.errors.length === 0;
@@ -339,10 +420,18 @@ export class BackupService {
   /**
    * Verify backup file integrity
    */
-  async verifyBackup(fileUri: string): Promise<boolean> {
+  async verifyBackup(fileUri: string, password?: string): Promise<boolean> {
     try {
       const file = new File(fileUri);
-      const content = await file.text();
+      let content = await file.text();
+      
+      // Try to decrypt if encrypted
+      if (content.startsWith('U2FsdGVkX1')) {
+        if (!password) {
+          throw new Error('This backup is encrypted. Please provide a password.');
+        }
+        content = await this.decryptBackup(content, password);
+      }
       
       const backupData: BackupData = JSON.parse(content);
       

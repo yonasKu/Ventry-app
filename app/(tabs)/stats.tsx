@@ -5,7 +5,9 @@ import {
   Text, 
   ScrollView, 
   RefreshControl,
-  ActivityIndicator 
+  ActivityIndicator,
+  TouchableOpacity,
+  Alert
 } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useEvents } from '@/context/EventContext';
@@ -34,6 +36,7 @@ export default function StatsScreen() {
   const theme = useTheme();
   const { events, loading, refreshEvents } = useEvents();
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('month');
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = async () => {
@@ -42,20 +45,29 @@ export default function StatsScreen() {
     setRefreshing(false);
   };
 
-  // Filter events based on selected time period
+  // Filter events based on selected time period and specific event
   const filteredEvents = useMemo(() => {
-    return events.filter(event => {
-      // Parse the date string to a Date object
-      const eventDate = parseISO(event.date);
-      switch (timeFilter) {
-        case 'week': return isThisWeek(eventDate);
-        case 'month': return isThisMonth(eventDate);
-        case 'year': return differenceInDays(new Date(), eventDate) <= 365;
-        case 'all': return true;
-        default: return true;
-      }
-    });
-  }, [events, timeFilter]);
+    let filtered = events;
+    
+    // Filter by specific event if selected
+    if (selectedEventId) {
+      filtered = events.filter(event => event.id === selectedEventId);
+    } else {
+      // Filter by time period
+      filtered = events.filter(event => {
+        const eventDate = parseISO(event.date);
+        switch (timeFilter) {
+          case 'week': return isThisWeek(eventDate);
+          case 'month': return isThisMonth(eventDate);
+          case 'year': return differenceInDays(new Date(), eventDate) <= 365;
+          case 'all': return true;
+          default: return true;
+        }
+      });
+    }
+    
+    return filtered;
+  }, [events, timeFilter, selectedEventId]);
 
   // Calculate key stats using ReportingService
   const stats = useMemo(() => {
@@ -218,6 +230,35 @@ export default function StatsScreen() {
       }
     >
       <StatsHeader />
+      
+      {/* Event Filter Dropdown */}
+      <View style={[styles.eventFilterCard, { backgroundColor: theme.colors.backgroundPrimary, marginBottom: theme.spacing.md }]}>
+        <Text style={[styles.eventFilterLabel, { color: theme.colors.textSecondary }]}>Filter by Event</Text>
+        <TouchableOpacity
+          style={[styles.eventFilterButton, { borderColor: theme.colors.border }]}
+          onPress={() => {
+            Alert.alert(
+              'Select Event',
+              'Choose an event to view its statistics',
+              [
+                { text: 'All Events', onPress: () => setSelectedEventId(null) },
+                ...events.map(event => ({
+                  text: event.title,
+                  onPress: () => setSelectedEventId(event.id)
+                })),
+                { text: 'Cancel', style: 'cancel' }
+              ]
+            );
+          }}
+        >
+          <Text style={[styles.eventFilterText, { color: theme.colors.textPrimary }]}>
+            {selectedEventId 
+              ? events.find(e => e.id === selectedEventId)?.title || 'All Events'
+              : 'All Events'}
+          </Text>
+          <Text style={{ color: theme.colors.textSecondary }}>▼</Text>
+        </TouchableOpacity>
+      </View>
       
       {/* Export PDF Button */}
       <View style={{ marginBottom: theme.spacing.md }}>
@@ -402,5 +443,28 @@ const styles = StyleSheet.create({
   insightTextContainer: {
     flex: 1,
     marginLeft: 12,
+  },
+  eventFilterCard: {
+    padding: 16,
+    borderRadius: 12,
+    marginHorizontal: 8,
+  },
+  eventFilterLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  eventFilterButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+  eventFilterText: {
+    fontSize: 16,
+    fontWeight: '500',
   },
 });

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, TouchableOpacity, Text, View, TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, StatusBar } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Calendar, CaretLeft, Check, Clock, MapPin, Users, NotePencil, Tag } from 'phosphor-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -18,6 +19,7 @@ const EVENT_CATEGORIES = [
 export default function CreateEventScreen() {
   const theme = useTheme();
   const { createEvent } = useEvents();
+  const insets = useSafeAreaInsets();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [eventName, setEventName] = useState('');
   const [eventLocation, setEventLocation] = useState('');
@@ -45,14 +47,14 @@ export default function CreateEventScreen() {
     });
   };
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
+  const handleDateChange = (_event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
     if (selectedDate) {
       setEventDate(selectedDate);
     }
   };
 
-  const handleTimeChange = (event: any, selectedTime?: Date) => {
+  const handleTimeChange = (_event: any, selectedTime?: Date) => {
     setShowTimePicker(false);
     if (selectedTime) {
       setEventTime(selectedTime);
@@ -61,7 +63,7 @@ export default function CreateEventScreen() {
 
   const handleCreateEvent = async () => {
     if (!eventName.trim()) {
-      Alert.alert('Error', 'Event name is required');
+      Alert.alert('Required Field', 'Please enter an event name to continue.');
       return;
     }
 
@@ -70,7 +72,7 @@ export default function CreateEventScreen() {
     try {
       // Format date and time as strings for SQLite
       const dateString = eventDate.toISOString().split('T')[0]; // YYYY-MM-DD
-      const timeString = eventTime.toISOString().split('T')[1].substring(0, 8); // HH:MM:SS
+      const timeString = eventTime.toTimeString().split(' ')[0].substring(0, 5); // HH:MM
       
       console.log('Creating event with date:', dateString, 'and time:', timeString);
       
@@ -89,7 +91,7 @@ export default function CreateEventScreen() {
       
       Alert.alert(
         'Success',
-        'Event created successfully',
+        'Your event has been created successfully!',
         [
           { 
             text: 'OK', 
@@ -102,49 +104,60 @@ export default function CreateEventScreen() {
       );
     } catch (error) {
       console.error('Error creating event:', error);
-      Alert.alert('Error', 'Failed to create event. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+      Alert.alert(
+        'Unable to Create Event', 
+        errorMessage.includes('required') || errorMessage.includes('Invalid') 
+          ? errorMessage 
+          : 'Something went wrong while creating your event. Please try again.'
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={{ flex: 1 }} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
-        <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
-        <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
-          <TouchableOpacity 
-            style={styles.backButton} 
-            onPress={() => router.back()}
-            disabled={isSubmitting}
-          >
-            <CaretLeft size={24} color="white" weight="regular" />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: "white" }]}>Create New Event</Text>
-          <TouchableOpacity 
-            style={[
-              styles.saveButton, 
-              { 
-                backgroundColor: eventName && !isSubmitting ? 'white' : 'rgba(255,255,255,0.5)',
-                opacity: eventName && !isSubmitting ? 1 : 0.7,
-              }
-            ]} 
-            onPress={handleCreateEvent}
-            disabled={!eventName || isSubmitting}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator size="small" color={theme.colors.primary} />
-            ) : (
-              <Check size={20} color={theme.colors.primary} weight="bold" />
-            )}
-          </TouchableOpacity>
-        </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.primary }} edges={['top']}>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
+          <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+          <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
+            <TouchableOpacity 
+              style={styles.backButton} 
+              onPress={() => router.back()}
+              disabled={isSubmitting}
+            >
+              <CaretLeft size={24} color="white" weight="regular" />
+            </TouchableOpacity>
+            <Text style={[styles.headerTitle, { color: "white" }]}>Create New Event</Text>
+            <TouchableOpacity 
+              style={[
+                styles.saveButton, 
+                { 
+                  backgroundColor: eventName && !isSubmitting ? 'white' : 'rgba(255,255,255,0.5)',
+                  opacity: eventName && !isSubmitting ? 1 : 0.7,
+                }
+              ]} 
+              onPress={handleCreateEvent}
+              disabled={!eventName || isSubmitting}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+              ) : (
+                <Check size={20} color={theme.colors.primary} weight="bold" />
+              )}
+            </TouchableOpacity>
+          </View>
 
-        <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
-          <View style={styles.formCard}>
+          <ScrollView 
+            style={styles.formContainer} 
+            contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
+            showsVerticalScrollIndicator={false}
+          >
+          <View style={[styles.formCard, { backgroundColor: theme.colors.surface }]}>
             <View style={[styles.inputGroup, { borderBottomColor: theme.colors.border }]}>
               <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Event Name *</Text>
               <TextInput
@@ -302,9 +315,10 @@ export default function CreateEventScreen() {
               />
             </View>
           </View>
-        </ScrollView>
-      </View>
-    </KeyboardAvoidingView>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -343,7 +357,6 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   formCard: {
-    backgroundColor: 'white',
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,

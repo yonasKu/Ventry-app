@@ -14,13 +14,14 @@ import {
   TextInput,
   Modal,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { CaretLeft, Users, MagnifyingGlass, QrCode, X, ClipboardText, UserPlus, Upload } from 'phosphor-react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import * as Clipboard from 'expo-clipboard';
 import CsvService, { CSV_TEMPLATES, ImportAttendee } from '../../../services/CsvService';
 import { BlurView } from 'expo-blur';
-import { DatabaseService, Event, Attendee } from '../../../services/DatabaseService';
+import { dbService, Event, Attendee } from '../../../services/DatabaseService';
 import * as _ from 'lodash';
 import AttendeeQRCode from '../../../components/AttendeeQRCode';
 
@@ -40,8 +41,9 @@ import TemplateSelector from './components/TemplateSelector';
 
 export default function ImportAttendeesScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { id: eventId } = useLocalSearchParams<{ id: string }>();
-  const db = useRef(new DatabaseService()).current;
+  const db = dbService;
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -315,41 +317,46 @@ export default function ImportAttendeesScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.colors.backgroundPrimary }]}>
-        <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={[styles.loadingText, { color: theme.colors.textPrimary }]}>Loading event...</Text>
-      </View>
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.backgroundPrimary }} edges={['top']}>
+        <View style={[styles.loadingContainer, { backgroundColor: theme.colors.backgroundPrimary }]}>
+          <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={[styles.loadingText, { color: theme.colors.textPrimary }]}>Loading event...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (!event) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.colors.backgroundPrimary }]}>
-         <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
-        <Text style={[styles.loadingText, { color: theme.colors.textPrimary }]}>Event not found.</Text>
-        <TouchableOpacity 
-          onPress={() => router.back()} 
-          style={[styles.backButton, { backgroundColor: theme.colors.backgroundSecondary }]}
-        >
-          <Text style={{color: theme.colors.primary}}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.backgroundPrimary }} edges={['top']}>
+        <View style={[styles.loadingContainer, { backgroundColor: theme.colors.backgroundPrimary }]}>
+           <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
+          <Text style={[styles.loadingText, { color: theme.colors.textPrimary }]}>Event not found.</Text>
+          <TouchableOpacity 
+            onPress={() => router.back()} 
+            style={[styles.backButton, { backgroundColor: theme.colors.backgroundSecondary }]}
+          >
+            <Text style={{color: theme.colors.primary}}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
 
   // filteredAttendees is defined at the top of the component
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.screenContainer, { backgroundColor: theme.colors.backgroundSecondary }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? (StatusBar.currentHeight || 0) + 44 : 0} // Adjust for header
-    >
-      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
-      
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.primary }} edges={['top']}>
+      <KeyboardAvoidingView
+        style={[styles.screenContainer, { backgroundColor: theme.colors.backgroundSecondary }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? (StatusBar.currentHeight || 0) + 44 : 0} // Adjust for header
+      >
+        <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+        
+        {/* Header */}
+        <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <CaretLeft size={24} color="white" weight="bold" />
         </TouchableOpacity>
@@ -569,6 +576,7 @@ export default function ImportAttendeesScreen() {
         </View>
       </Modal>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 

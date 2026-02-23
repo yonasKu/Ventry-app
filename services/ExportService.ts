@@ -3,7 +3,8 @@ import * as Sharing from 'expo-sharing';
 import Papa from 'papaparse';
 import { Platform, Alert } from 'react-native';
 import { nanoid } from 'nanoid/non-secure';
-import { DatabaseService, Event, Attendee } from './DatabaseService';
+import CryptoJS from 'crypto-js';
+import { dbService, Event, Attendee } from './DatabaseService';
 import CsvService from './CsvService';
 
 // Export format options
@@ -44,14 +45,43 @@ export interface ExportTaskStatus {
 }
 
 export class ExportService {
-  private dbService: DatabaseService;
+  private dbService = dbService;
   private csvService: typeof CsvService;
   private activeTasks: Map<string, ExportTaskStatus>;
   
   constructor() {
-    this.dbService = new DatabaseService();
     this.csvService = CsvService;
     this.activeTasks = new Map();
+  }
+  
+  /**
+   * Validate export parameters
+   */
+  private validateExportParams(eventId: string, options: ExportOptions): void {
+    // Validate eventId
+    if (!eventId || typeof eventId !== 'string' || eventId.trim() === '') {
+      throw new Error('Valid event ID is required');
+    }
+    
+    // Validate format
+    const validFormats = Object.values(ExportFormat);
+    if (!validFormats.includes(options.format)) {
+      throw new Error(`Invalid export format: ${options.format}`);
+    }
+    
+    // Validate includeFields
+    if (options.includeFields) {
+      if (!Array.isArray(options.includeFields)) {
+        throw new Error('includeFields must be an array');
+      }
+      
+      const validFields = ['name', 'email', 'phone', 'checked_in', 'check_in_time', 'created_at', 'updated_at'];
+      const invalidFields = options.includeFields.filter(f => !validFields.includes(f));
+      
+      if (invalidFields.length > 0) {
+        throw new Error(`Invalid fields: ${invalidFields.join(', ')}`);
+      }
+    }
   }
   
   /**
@@ -62,6 +92,9 @@ export class ExportService {
     options: ExportOptions = { format: ExportFormat.CSV, includeCheckInStatus: true }
   ): Promise<string> {
     try {
+      // Validate input
+      this.validateExportParams(eventId, options);
+      
       // Get event data
       const event = this.dbService.getEventById(eventId);
       if (!event) {
@@ -275,8 +308,7 @@ export class ExportService {
   }
 
   /**
-   * Encrypt a file with a password
-   * Note: This uses a simple encryption for demonstration.
+   * Encrypt a file with a password using AES encryption
    */
   private async encryptFile(filePath: string, password: string): Promise<string> {
     try {
@@ -284,18 +316,39 @@ export class ExportService {
       const file = new File(filePath);
       const fileContent = await file.text();
       
-      // Use a simple encryption method that doesn't depend on external libraries
-      // In a real app, you would use a proper encryption library
-      const encryptedContent = `ENCRYPTED:${password}\n${fileContent}`;
+      // Use proper AES encryption
+      const encrypted = CryptoJS.AES.encrypt(fileContent, password).toString();
       
       // Save encrypted content
       const encryptedFile = new File(`${filePath}.encrypted`);
-      await encryptedFile.write(encryptedContent);
+      await encryptedFile.write(encrypted);
       
       return encryptedFile.uri;
     } catch (error: any) {
       console.error('Error encrypting file:', error);
       throw new Error(`Failed to encrypt file: ${error.message || 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Decrypt a file with a password using AES decryption
+   */
+  private async decryptFile(filePath: string, password: string): Promise<string> {
+    try {
+      const file = new File(filePath);
+      const encryptedContent = await file.text();
+      
+      const decrypted = CryptoJS.AES.decrypt(encryptedContent, password);
+      const plaintext = decrypted.toString(CryptoJS.enc.Utf8);
+      
+      if (!plaintext) {
+        throw new Error('Invalid password or corrupted file');
+      }
+      
+      return plaintext;
+    } catch (error: any) {
+      console.error('Error decrypting file:', error);
+      throw new Error(`Failed to decrypt file: ${error.message || 'Unknown error'}`);
     }
   }
 

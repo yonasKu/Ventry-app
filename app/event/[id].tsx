@@ -262,6 +262,12 @@ export default function EventDetailScreen() {
           ]}
         >
           <Text style={styles.eventTitle}>{event.title}</Text>
+          
+          {event.category && (
+            <View style={styles.categoryBadge}>
+              <Text style={styles.categoryBadgeText}>{event.category}</Text>
+            </View>
+          )}
 
           <View style={styles.eventDateTimeContainer}>
             <View style={styles.eventDateTimeItem}>
@@ -324,7 +330,7 @@ export default function EventDetailScreen() {
               <Text
                 style={[
                   styles.attendeeStatsNumber,
-                  { color: theme.colors.accent },
+                  { color: theme.colors.success },
                 ]}
               >
                 {event.checked_in_count || 0}
@@ -336,6 +342,34 @@ export default function EventDetailScreen() {
                 ]}
               >
                 Checked In
+              </Text>
+            </View>
+            
+            <View
+              style={[
+                styles.attendeeStatsDivider,
+                { backgroundColor: theme.colors.border },
+              ]}
+            />
+
+            <View style={styles.attendeeStatsItem}>
+              <Text
+                style={[
+                  styles.attendeeStatsNumber,
+                  { color: theme.colors.accent },
+                ]}
+              >
+                {event.attendees_count > 0 
+                  ? Math.round((event.checked_in_count / event.attendees_count) * 100)
+                  : 0}%
+              </Text>
+              <Text
+                style={[
+                  styles.attendeeStatsLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Check-in Rate
               </Text>
             </View>
           </View>
@@ -830,7 +864,20 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "bold",
     color: "white",
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  categoryBadge: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+  },
+  categoryBadgeText: {
+    color: 'white',
+    fontSize: 13,
+    fontWeight: '600',
   },
   eventDateTimeContainer: {
     flexDirection: "row",
