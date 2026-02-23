@@ -14,7 +14,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from "expo-router";
 import {
   CaretLeft,
-  CaretRight,
   PencilSimple,
   Trash,
   UserPlus,
@@ -28,11 +27,10 @@ import {
   FileArrowDown,
   Scan,
   FileText,
+  ChartBar,
 } from "phosphor-react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { useEvents } from "../../context/EventContext";
-import { format, parseISO } from "date-fns";
-import ExportPDFButton from "@/components/ExportPDFButton";
 
 export default function EventDetailScreen() {
   const theme = useTheme();
@@ -246,6 +244,7 @@ export default function EventDetailScreen() {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -445,6 +444,7 @@ export default function EventDetailScreen() {
           </Text>
 
           <View style={styles.actionButtonsGrid}>
+            {/* Most Used Actions - Top Priority */}
             <TouchableOpacity
               style={[
                 styles.actionButtonCard,
@@ -452,7 +452,6 @@ export default function EventDetailScreen() {
               ]}
               onPress={() => {
                 console.log("Navigating to check-in page with ID:", id);
-                // Use navigate instead of push for more reliable navigation
                 router.navigate({
                   pathname: "/event/check-in/[id]",
                   params: { id }
@@ -478,35 +477,6 @@ export default function EventDetailScreen() {
                 ]}
               >
                 Check-In
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.actionButtonCard,
-                { backgroundColor: theme.colors.backgroundPrimary },
-              ]}
-              onPress={() => router.push(`/event/scan/${id}`)}
-            >
-              <View
-                style={[
-                  styles.actionIconContainer,
-                  { backgroundColor: `${theme.colors.primary}15` },
-                ]}
-              >
-                <QrCode
-                  size={24}
-                  color={theme.colors.primary}
-                  weight="fill"
-                />
-              </View>
-              <Text
-                style={[
-                  styles.actionButtonLabel,
-                  { color: theme.colors.textPrimary },
-                ]}
-              >
-                Scan QR
               </Text>
             </TouchableOpacity>
 
@@ -544,31 +514,6 @@ export default function EventDetailScreen() {
                 styles.actionButtonCard,
                 { backgroundColor: theme.colors.backgroundPrimary },
               ]}
-              onPress={() => router.push(`/event/qr/${id}`)}
-            >
-              <View
-                style={[
-                  styles.actionIconContainer,
-                  { backgroundColor: `${theme.colors.primary}15` },
-                ]}
-              >
-                <QrCode size={24} color={theme.colors.primary} weight="fill" />
-              </View>
-              <Text
-                style={[
-                  styles.actionButtonLabel,
-                  { color: theme.colors.textPrimary },
-                ]}
-              >
-                Event QR
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.actionButtonCard,
-                { backgroundColor: theme.colors.backgroundPrimary },
-              ]}
               onPress={() => router.push(`/event/scan-qr/${id}`)}
             >
               <View
@@ -590,6 +535,63 @@ export default function EventDetailScreen() {
                 ]}
               >
                 Scan QR
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.actionButtonCard,
+                { backgroundColor: theme.colors.backgroundPrimary },
+              ]}
+              onPress={() => {
+                router.push(`/event/stats/${id}`);
+              }}
+            >
+              <View
+                style={[
+                  styles.actionIconContainer,
+                  { backgroundColor: `${theme.colors.accent}15` },
+                ]}
+              >
+                <ChartBar
+                  size={24}
+                  color={theme.colors.accent}
+                  weight="fill"
+                />
+              </View>
+              <Text
+                style={[
+                  styles.actionButtonLabel,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                View Stats
+              </Text>
+            </TouchableOpacity>
+
+            {/* Secondary Actions */}
+            <TouchableOpacity
+              style={[
+                styles.actionButtonCard,
+                { backgroundColor: theme.colors.backgroundPrimary },
+              ]}
+              onPress={() => router.push(`/event/qr/${id}`)}
+            >
+              <View
+                style={[
+                  styles.actionIconContainer,
+                  { backgroundColor: `${theme.colors.primary}15` },
+                ]}
+              >
+                <QrCode size={24} color={theme.colors.primary} weight="fill" />
+              </View>
+              <Text
+                style={[
+                  styles.actionButtonLabel,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                Event QR
               </Text>
             </TouchableOpacity>
 
@@ -628,8 +630,6 @@ export default function EventDetailScreen() {
                 { backgroundColor: theme.colors.backgroundPrimary },
               ]}
               onPress={() => {
-                // This will be handled by the ExportPDFButton component
-                // We'll create a simple wrapper here
                 import('@/services/PDFService').then(({ default: PDFService }) => {
                   PDFService.generateEventReport(id)
                     .then((filePath) => PDFService.sharePDF(filePath))
@@ -665,7 +665,9 @@ export default function EventDetailScreen() {
                 styles.actionButtonCard,
                 { backgroundColor: theme.colors.backgroundPrimary },
               ]}
-              onPress={() => router.push(`/event/edit/${id}`)}
+              onPress={() => {
+                router.push(`/event/attendees/${id}?mode=qr`);
+              }}
             >
               <View
                 style={[
@@ -673,7 +675,7 @@ export default function EventDetailScreen() {
                   { backgroundColor: `${theme.colors.primary}15` },
                 ]}
               >
-                <PencilSimple
+                <QrCode
                   size={24}
                   color={theme.colors.primary}
                   weight="fill"
@@ -685,39 +687,10 @@ export default function EventDetailScreen() {
                   { color: theme.colors.textPrimary },
                 ]}
               >
-                Edit
+                Attendee QRs
               </Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[
-                styles.actionButtonCard,
-                { backgroundColor: theme.colors.backgroundPrimary },
-              ]}
-              onPress={() => router.push(`/event/export/${id}`)}
-            >
-              <View
-                style={[
-                  styles.actionIconContainer,
-                  { backgroundColor: `${theme.colors.primary}15` },
-                ]}
-              >
-                <FileArrowDown
-                  size={24}
-                  color={theme.colors.primary}
-                  weight="fill"
-                />
-              </View>
-              <Text
-                style={[
-                  styles.actionButtonLabel,
-                  { color: theme.colors.textPrimary },
-                ]}
-              >
-                Export
-              </Text>
-            </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[
                 styles.actionButtonCard,

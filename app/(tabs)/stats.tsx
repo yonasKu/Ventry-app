@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -6,9 +6,9 @@ import {
   ScrollView, 
   RefreshControl,
   ActivityIndicator,
-  TouchableOpacity,
-  Alert
+  TouchableOpacity
 } from 'react-native';
+import { Funnel } from 'phosphor-react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useEvents } from '@/context/EventContext';
 import { parseISO, isThisWeek, isThisMonth, differenceInDays } from 'date-fns';
@@ -29,15 +29,32 @@ import EventCompletionBars from '@/components/statistics/EventCompletionBars';
 import CheckinRateTrendChart from '@/components/statistics/CheckinRateTrendChart';
 import ReportingService from '@/services/ReportingService';
 import ExportPDFButton from '@/components/ExportPDFButton';
+import FilterSheet, { FilterOptions } from '@/components/FilterSheet';
 
-type TimeFilter = 'week' | 'month' | 'year' | 'all';
+import { useLocalSearchParams } from 'expo-router';
 
 export default function StatsScreen() {
   const theme = useTheme();
   const { events, loading, refreshEvents } = useEvents();
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('month');
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const { eventId } = useLocalSearchParams<{ eventId?: string }>();
   const [refreshing, setRefreshing] = useState(false);
+  const [filterSheetVisible, setFilterSheetVisible] = useState(false);
+  const [filters, setFilters] = useState<FilterOptions>({
+    selectedEventId: eventId || null,
+    timeFilter: 'month',
+    category: null,
+    status: 'all',
+    checkInStatus: 'all',
+    attendeeRange: { min: null, max: null },
+    sortBy: 'date',
+  });
+
+  // Update filters when eventId param changes
+  useEffect(() => {
+    if (eventId) {
+      setFilters(prev => ({ ...prev, selectedEventId: eventId }));
+    }
+  }, [eventId]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -45,18 +62,18 @@ export default function StatsScreen() {
     setRefreshing(false);
   };
 
-  // Filter events based on selected time period and specific event
+  // Filter events based on selected filters
   const filteredEvents = useMemo(() => {
     let filtered = events;
     
     // Filter by specific event if selected
-    if (selectedEventId) {
-      filtered = events.filter(event => event.id === selectedEventId);
+    if (filters.selectedEventId) {
+      filtered = events.filter(event => event.id === filters.selectedEventId);
     } else {
       // Filter by time period
       filtered = events.filter(event => {
         const eventDate = parseISO(event.date);
-        switch (timeFilter) {
+        switch (filters.timeFilter) {
           case 'week': return isThisWeek(eventDate);
           case 'month': return isThisMonth(eventDate);
           case 'year': return differenceInDays(new Date(), eventDate) <= 365;
@@ -67,7 +84,7 @@ export default function StatsScreen() {
     }
     
     return filtered;
-  }, [events, timeFilter, selectedEventId]);
+  }, [events, filters]);
 
   // Calculate key stats using ReportingService
   const stats = useMemo(() => {
@@ -76,7 +93,7 @@ export default function StatsScreen() {
     // Calculate vs previous period
     const previousPeriodEvents = events.filter(event => {
       const eventDate = parseISO(event.date);
-      switch (timeFilter) {
+      switch (filters.timeFilter) {
         case 'week': return differenceInDays(new Date(), eventDate) > 7 && differenceInDays(new Date(), eventDate) <= 14;
         case 'month': return differenceInDays(new Date(), eventDate) > 30 && differenceInDays(new Date(), eventDate) <= 60;
         case 'year': return differenceInDays(new Date(), eventDate) > 365 && differenceInDays(new Date(), eventDate) <= 730;
@@ -116,7 +133,7 @@ export default function StatsScreen() {
       mostPopularEvent,
       activeEvents: overallStats.upcomingEvents,
     };
-  }, [filteredEvents, events, timeFilter]);
+  }, [filteredEvents, events, filters.timeFilter]);
 
   // Format event data for charts using ReportingService
   const chartData = useMemo(() => {
@@ -125,7 +142,7 @@ export default function StatsScreen() {
     );
 
     // Data for AttendanceTrendChart - use ReportingService
-    const days = timeFilter === 'week' ? 7 : timeFilter === 'month' ? 30 : timeFilter === 'year' ? 365 : 90;
+    const days = filters.timeFilter === 'week' ? 7 : filters.timeFilter === 'month' ? 30 : filters.timeFilter === 'year' ? 365 : 90;
     const attendanceTrends = ReportingService.getAttendanceTrends(days);
     const trendData = attendanceTrends.map((trend: { date: string; attendees: number }) => ({
       x: parseISO(trend.date),
@@ -184,7 +201,7 @@ export default function StatsScreen() {
     }));
 
     return { barData, pieData, pieStats, distributionData, trendData, attendeeTypeData, heatMapData, checkinSpeed, eventCompletionData, checkinRateTrendData };
-  }, [filteredEvents, stats, theme, timeFilter]);
+  }, [filteredEvents, stats, theme, filters.timeFilter]);
 
   // Victory theme customization
   const customTheme = {
@@ -229,34 +246,14 @@ export default function StatsScreen() {
         />
       }
     >
-      <StatsHeader />
-      
-      {/* Event Filter Dropdown */}
-      <View style={[styles.eventFilterCard, { backgroundColor: theme.colors.backgroundPrimary, marginBottom: theme.spacing.md }]}>
-        <Text style={[styles.eventFilterLabel, { color: theme.colors.textSecondary }]}>Filter by Event</Text>
+      {/* Header with Filter Icon */}
+      <View style={styles.headerRow}>
+        <StatsHeader />
         <TouchableOpacity
-          style={[styles.eventFilterButton, { borderColor: theme.colors.border }]}
-          onPress={() => {
-            Alert.alert(
-              'Select Event',
-              'Choose an event to view its statistics',
-              [
-                { text: 'All Events', onPress: () => setSelectedEventId(null) },
-                ...events.map(event => ({
-                  text: event.title,
-                  onPress: () => setSelectedEventId(event.id)
-                })),
-                { text: 'Cancel', style: 'cancel' }
-              ]
-            );
-          }}
+          style={[styles.filterButton, { backgroundColor: theme.colors.backgroundPrimary }]}
+          onPress={() => setFilterSheetVisible(true)}
         >
-          <Text style={[styles.eventFilterText, { color: theme.colors.textPrimary }]}>
-            {selectedEventId 
-              ? events.find(e => e.id === selectedEventId)?.title || 'All Events'
-              : 'All Events'}
-          </Text>
-          <Text style={{ color: theme.colors.textSecondary }}>▼</Text>
+          <Funnel size={20} color={theme.colors.primary} weight="bold" />
         </TouchableOpacity>
       </View>
       
@@ -264,12 +261,12 @@ export default function StatsScreen() {
       <View style={{ marginBottom: theme.spacing.md }}>
         <ExportPDFButton
           type="statistics"
-          timeFilter={timeFilter}
+          timeFilter={filters.timeFilter}
           variant="primary"
         />
       </View>
       
-      <TimeFilterComponent timeFilter={timeFilter} setTimeFilter={setTimeFilter} />
+      <TimeFilterComponent timeFilter={filters.timeFilter} setTimeFilter={(tf) => setFilters({ ...filters, timeFilter: tf })} />
       <OverviewSection stats={stats} />
       <EventDistributionChart data={chartData.distributionData} />
       <SectionHeader title="Attendance Analytics" />
@@ -297,6 +294,22 @@ export default function StatsScreen() {
       <CheckinSpeedGauge value={chartData.checkinSpeed} label="Average Check-in Speed" unit="per minute" />
       <EventCompletionBars events={chartData.eventCompletionData} title="Event Completion Status" />
       <CheckinRateTrendChart data={chartData.checkinRateTrendData} title="Check-in Rate Over Time" />
+      
+      {/* Filter Sheet */}
+      <FilterSheet
+        visible={filterSheetVisible}
+        onClose={() => setFilterSheetVisible(false)}
+        onApply={(newFilters) => setFilters(newFilters)}
+        currentFilters={filters}
+        events={events}
+        showTimeFilter={true}
+        showEventFilter={true}
+        showCategoryFilter={false}
+        showStatusFilter={false}
+        showCheckInFilter={true}
+        showAttendeeRangeFilter={false}
+        showSortOptions={false}
+      />
     </ScrollView>
   );
 }
@@ -305,6 +318,24 @@ const styles = StyleSheet.create({
   container: {
     paddingTop: 24,
     paddingBottom: 40,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  filterButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   loadingContainer: {
     flex: 1,
@@ -443,28 +474,5 @@ const styles = StyleSheet.create({
   insightTextContainer: {
     flex: 1,
     marginLeft: 12,
-  },
-  eventFilterCard: {
-    padding: 16,
-    borderRadius: 12,
-    marginHorizontal: 8,
-  },
-  eventFilterLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  eventFilterButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 12,
-    borderWidth: 1,
-    borderRadius: 8,
-  },
-  eventFilterText: {
-    fontSize: 16,
-    fontWeight: '500',
   },
 });

@@ -1,22 +1,30 @@
-import { StyleSheet, TouchableOpacity, ScrollView, Text, View, ActivityIndicator, RefreshControl, Dimensions, ImageBackground } from 'react-native';
+import { StyleSheet, TouchableOpacity, ScrollView, Text, View, ActivityIndicator, RefreshControl, Dimensions } from 'react-native';
 import { useState, useEffect, useMemo } from 'react';
 import { router } from 'expo-router';
-import { List, CalendarBlank, CaretRight, Plus, UsersThree, MapPin, Clock } from 'phosphor-react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { List, CalendarBlank, CaretRight, Plus, UsersThree, MapPin, Clock, Funnel } from 'phosphor-react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useEvents } from '@/context/EventContext';
-import { format, parseISO, isSameDay, isToday, isFuture, isPast, addDays } from 'date-fns';
+import { format, parseISO, isSameDay, isToday, isFuture, isPast } from 'date-fns';
 import { Calendar, DateData } from 'react-native-calendars';
-
-const { width } = Dimensions.get('window');
+import FilterSheet, { FilterOptions } from '@/components/FilterSheet';
 
 export default function HomeScreen() {
   const theme = useTheme();
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
-  const { events, loading, error, refreshEvents } = useEvents();
+  const { events, loading, refreshEvents } = useEvents();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedDate, setSelectedDate] = useState<DateData | null>(null);
   const [selectedDateEvents, setSelectedDateEvents] = useState<any[]>([]);
+  const [filterSheetVisible, setFilterSheetVisible] = useState(false);
+  const [filters, setFilters] = useState<FilterOptions>({
+    selectedEventId: null,
+    timeFilter: 'all',
+    category: null,
+    status: 'all',
+    checkInStatus: 'all',
+    attendeeRange: { min: null, max: null },
+    sortBy: 'date',
+  });
   
   useEffect(() => {
     console.log('HomeScreen mounted, events:', events);
@@ -33,14 +41,51 @@ export default function HomeScreen() {
     }
   };
   
-  // Group events by status (today, upcoming, past)
+  // Group events by status (today, upcoming, past) and apply filters
   const groupedEvents = useMemo(() => {
+    let filteredEvents = [...events];
+    
+    // Apply category filter
+    if (filters.category) {
+      filteredEvents = filteredEvents.filter(e => e.category === filters.category);
+    }
+    
+    // Apply attendee range filter
+    if (filters.attendeeRange.min !== null) {
+      filteredEvents = filteredEvents.filter(e => (e.attendees_count || 0) >= filters.attendeeRange.min!);
+    }
+    if (filters.attendeeRange.max !== null) {
+      filteredEvents = filteredEvents.filter(e => (e.attendees_count || 0) <= filters.attendeeRange.max!);
+    }
+    
+    // Apply sorting
+    filteredEvents.sort((a, b) => {
+      switch (filters.sortBy) {
+        case 'name':
+          return a.title.localeCompare(b.title);
+        case 'attendees':
+          return (b.attendees_count || 0) - (a.attendees_count || 0);
+        case 'checkInRate':
+          const rateA = a.attendees_count ? (a.checked_in_count || 0) / a.attendees_count : 0;
+          const rateB = b.attendees_count ? (b.checked_in_count || 0) / b.attendees_count : 0;
+          return rateB - rateA;
+        case 'date':
+        default:
+          return new Date(a.date).getTime() - new Date(b.date).getTime();
+      }
+    });
+    
     const today: any[] = [];
     const upcoming: any[] = [];
     const past: any[] = [];
     
-    events.forEach(event => {
+    filteredEvents.forEach(event => {
       const eventDate = event.date.includes('T') ? parseISO(event.date) : new Date(event.date);
+      
+      // Apply status filter
+      if (filters.status === 'upcoming' && !isFuture(eventDate) && !isToday(eventDate)) return;
+      if (filters.status === 'past' && !isPast(eventDate)) return;
+      
       if (isToday(eventDate)) {
         today.push(event);
       } else if (isFuture(eventDate)) {
@@ -51,7 +96,7 @@ export default function HomeScreen() {
     });
     
     return { today, upcoming, past };
-  }, [events]);
+  }, [events, filters]);
 
   const formatDate = (dateStr: string) => {
     try {
@@ -127,7 +172,14 @@ export default function HomeScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Events</Text>
-        <View style={[styles.viewToggle, { backgroundColor: theme.colors.backgroundPrimary }]}>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={[styles.filterButton, { backgroundColor: theme.colors.backgroundPrimary }]}
+            onPress={() => setFilterSheetVisible(true)}
+          >
+            <Funnel size={20} color={theme.colors.primary} weight="bold" />
+          </TouchableOpacity>
+          <View style={[styles.viewToggle, { backgroundColor: theme.colors.backgroundPrimary }]}>
           <TouchableOpacity 
             style={[styles.toggleButton, viewMode === 'list' && [styles.activeToggle, { backgroundColor: theme.colors.primary }]]} 
             onPress={() => setViewMode('list')}
@@ -148,6 +200,7 @@ export default function HomeScreen() {
               weight={viewMode === 'calendar' ? 'bold' : 'regular'}
             />
           </TouchableOpacity>
+        </View>
         </View>
       </View>
 
@@ -445,6 +498,22 @@ export default function HomeScreen() {
           <Text style={styles.createButtonText}>CREATE NEW EVENT</Text>
         </View>
       </TouchableOpacity>
+      
+      {/* Filter Sheet */}
+      <FilterSheet
+        visible={filterSheetVisible}
+        onClose={() => setFilterSheetVisible(false)}
+        onApply={(newFilters) => setFilters(newFilters)}
+        currentFilters={filters}
+        events={events}
+        showTimeFilter={false}
+        showEventFilter={false}
+        showCategoryFilter={true}
+        showStatusFilter={true}
+        showCheckInFilter={false}
+        showAttendeeRangeFilter={true}
+        showSortOptions={true}
+      />
     </View>
   );
 }
@@ -464,6 +533,23 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  filterButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   viewToggle: {
     flexDirection: 'row',
