@@ -142,7 +142,7 @@ export default function CustomFieldsScreen() {
           onPress={handleApplyTemplate}
         >
           <Text style={[styles.templateButtonText, { color: theme.colors.primary }]}>
-            📋 Apply Template
+            Apply Template
           </Text>
         </TouchableOpacity>
       </View>

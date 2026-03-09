@@ -71,12 +71,12 @@ export default function EventStatsScreen() {
     if (!event || !stats) return;
     
     try {
-      const message = `📊 ${event.title} Statistics\n\n` +
-        `👥 Total Attendees: ${stats.totalAttendees}\n` +
-        `✅ Checked In: ${stats.checkedIn}\n` +
-        `📈 Check-in Rate: ${stats.checkInRate}%\n` +
-        `📅 Date: ${new Date(event.date).toLocaleDateString()}\n` +
-        `🕐 Time: ${event.time}`;
+      const message = `${event.title} - Event Statistics\n\n` +
+        `Total Attendees: ${stats.totalAttendees}\n` +
+        `Checked In: ${stats.checkedIn}\n` +
+        `Check-in Rate: ${stats.checkInRate}%\n` +
+        `Date: ${new Date(event.date).toLocaleDateString()}\n` +
+        `Time: ${event.time}`;
       
       await Share.share({
         message,

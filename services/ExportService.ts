@@ -11,8 +11,8 @@ import CsvService from './CsvService';
 export enum ExportFormat {
   CSV = 'csv',
   JSON = 'json',
-  EXCEL = 'xlsx',
-  PDF = 'pdf'
+  // EXCEL = 'xlsx',  // Not implemented yet
+  // PDF = 'pdf'      // Not implemented yet
 }
 
 // Export destination options
@@ -30,6 +30,7 @@ export interface ExportOptions {
   password?: string;
   templateId?: string;
   destination?: ExportDestination;
+  onProgress?: (progress: number, message: string) => void; // Progress callback
 }
 
 // Export task status
@@ -154,18 +155,6 @@ export class ExportService {
           }
           break;
           
-        case ExportFormat.EXCEL:
-          // For now, we'll use CSV as a fallback and inform the user
-          Alert.alert('Feature Coming Soon', 'Excel export will be available in the next update. Using CSV format for now.');
-          filePath = await this.csvService.exportAttendeesToCsv(attendees, event, options.includeCheckInStatus);
-          break;
-          
-        case ExportFormat.PDF:
-          // For now, we'll use CSV as a fallback and inform the user
-          Alert.alert('Feature Coming Soon', 'PDF export will be available in the next update. Using CSV format for now.');
-          filePath = await this.csvService.exportAttendeesToCsv(attendees, event, options.includeCheckInStatus);
-          break;
-          
         default:
           filePath = await this.csvService.exportAttendeesToCsv(attendees, event, options.includeCheckInStatus);
       }
@@ -207,12 +196,6 @@ export class ExportService {
           filePath = await this.csvService.exportEventToCsv(event);
           break;
           
-        case ExportFormat.EXCEL:
-        case ExportFormat.PDF:
-          // For now, we'll use CSV as a fallback
-          filePath = await this.csvService.exportEventToCsv(event);
-          break;
-          
         default:
           filePath = await this.csvService.exportEventToCsv(event);
       }
@@ -237,46 +220,131 @@ export class ExportService {
     options: ExportOptions = { format: ExportFormat.CSV }
   ): Promise<string> {
     try {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const batchFileName = `batch_export_${timestamp}.${options.format}`;
-      const file = new File(Paths.document, batchFileName);
-      
-      // Create a simple text-based report with all events
-      let batchContent = `Ventry Batch Export\nDate: ${new Date().toLocaleString()}\n\n`;
-      
-      // Process each event
-      for (const eventId of eventIds) {
-        const event = this.dbService.getEventById(eventId);
-        if (!event) continue;
-        
-        batchContent += `\n--- EVENT: ${event.title} ---\n`;
-        batchContent += `Date: ${event.date} at ${event.time}\n`;
-        batchContent += `Location: ${event.location || 'N/A'}\n`;
-        batchContent += `Attendees: ${event.attendees_count || 0} (${event.checked_in_count || 0} checked in)\n\n`;
-        
-        // Get attendees
-        const attendees = this.dbService.getAttendees(eventId);
-        batchContent += `ATTENDEES:\n`;
-        
-        attendees.forEach((attendee, index) => {
-          batchContent += `${index + 1}. ${attendee.name} (${attendee.checked_in ? 'Checked In' : 'Not Checked In'})\n`;
-          if (attendee.email) batchContent += `   Email: ${attendee.email}\n`;
-          if (attendee.phone) batchContent += `   Phone: ${attendee.phone}\n`;
-          if (attendee.check_in_time) batchContent += `   Check-in time: ${attendee.check_in_time}\n`;
-          batchContent += `\n`;
-        });
-        
-        batchContent += `\n---------------------------------\n\n`;
+      // Validate format
+      if (options.format !== ExportFormat.CSV && options.format !== ExportFormat.JSON) {
+        throw new Error('Batch export only supports CSV and JSON formats');
       }
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       
-      // Save batch content to file
-      await file.write(batchContent);
-      
-      return file.uri;
+      // Handle different formats
+      if (options.format === ExportFormat.JSON) {
+        return await this.batchExportAsJson(eventIds, timestamp, options.onProgress);
+      } else {
+        return await this.batchExportAsCsv(eventIds, timestamp, options.onProgress);
+      }
     } catch (error: any) {
       console.error('Error batch exporting events:', error);
       throw new Error(`Failed to batch export events: ${error.message || 'Unknown error'}`);
     }
+  }
+
+  /**
+   * Batch export as CSV format
+   */
+  private async batchExportAsCsv(eventIds: string[], timestamp: string, onProgress?: (progress: number, message: string) => void): Promise<string> {
+    const batchFileName = `batch_export_${timestamp}.csv`;
+    const file = new File(Paths.document, batchFileName);
+    
+    onProgress?.(10, 'Starting batch export...');
+    
+    // Collect all attendees from all events
+    const allAttendees: any[] = [];
+    const totalEvents = eventIds.length;
+    
+    for (let i = 0; i < eventIds.length; i++) {
+      const eventId = eventIds[i];
+      const progress = 10 + Math.floor((i / totalEvents) * 60);
+      onProgress?.(progress, `Processing event ${i + 1} of ${totalEvents}...`);
+      
+      const event = this.dbService.getEventById(eventId);
+      if (!event) continue;
+      
+      const attendees = this.dbService.getAttendees(eventId);
+      
+      attendees.forEach(attendee => {
+        allAttendees.push({
+          'Event Title': event.title,
+          'Event Date': event.date,
+          'Event Time': event.time,
+          'Event Location': event.location || '',
+          'Attendee Name': attendee.name,
+          'Email': attendee.email || '',
+          'Phone': attendee.phone || '',
+          'Checked In': attendee.checked_in ? 'Yes' : 'No',
+          'Check-in Time': attendee.check_in_time || '',
+        });
+      });
+    }
+    
+    onProgress?.(80, 'Generating CSV file...');
+    
+    // Convert to CSV
+    const csv = Papa.unparse(allAttendees);
+    await file.write(csv);
+    
+    onProgress?.(100, 'Batch export complete!');
+    
+    return file.uri;
+  }
+
+  /**
+   * Batch export as JSON format
+   */
+  private async batchExportAsJson(eventIds: string[], timestamp: string, onProgress?: (progress: number, message: string) => void): Promise<string> {
+    const batchFileName = `batch_export_${timestamp}.json`;
+    const file = new File(Paths.document, batchFileName);
+    
+    onProgress?.(10, 'Starting batch export...');
+    
+    const batchData: any[] = [];
+    const totalEvents = eventIds.length;
+    
+    for (let i = 0; i < eventIds.length; i++) {
+      const eventId = eventIds[i];
+      const progress = 10 + Math.floor((i / totalEvents) * 60);
+      onProgress?.(progress, `Processing event ${i + 1} of ${totalEvents}...`);
+      
+      const event = this.dbService.getEventById(eventId);
+      if (!event) continue;
+      
+      const attendees = this.dbService.getAttendees(eventId);
+      
+      batchData.push({
+        event: {
+          id: event.id,
+          title: event.title,
+          date: event.date,
+          time: event.time,
+          location: event.location,
+          notes: event.notes,
+          attendees_count: event.attendees_count,
+          checked_in_count: event.checked_in_count,
+        },
+        attendees: attendees.map(a => ({
+          id: a.id,
+          name: a.name,
+          email: a.email,
+          phone: a.phone,
+          checked_in: a.checked_in,
+          check_in_time: a.check_in_time,
+        })),
+      });
+    }
+    
+    onProgress?.(80, 'Generating JSON file...');
+    
+    const jsonData = JSON.stringify({
+      exported_at: new Date().toISOString(),
+      events_count: batchData.length,
+      events: batchData,
+    }, null, 2);
+    
+    await file.write(jsonData);
+    
+    onProgress?.(100, 'Batch export complete!');
+    
+    return file.uri;
   }
 
   /**

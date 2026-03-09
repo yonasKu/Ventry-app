@@ -12,18 +12,16 @@ import {
 import {
   Moon,
   Sun,
-  Translate,
   Bell,
   ShieldCheck,
   Info,
-  FileText,
   Heart,
   Trash,
   Database,
-  DeviceMobile,
 } from 'phosphor-react-native';
 import { useTheme } from '@/context/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NotificationService from '@/services/NotificationService';
 
 export default function SettingsScreen() {
   const theme = useTheme();
@@ -50,12 +48,41 @@ export default function SettingsScreen() {
   };
 
   const handleNotificationsToggle = async (value: boolean) => {
-    setNotifications(value);
-    await AsyncStorage.setItem('notifications_enabled', JSON.stringify(value));
-    Alert.alert(
-      'Notifications',
-      value ? 'Notifications enabled' : 'Notifications disabled'
-    );
+    try {
+      if (value) {
+        // Request permissions when enabling
+        const granted = await NotificationService.requestPermissions();
+        if (!granted) {
+          Alert.alert(
+            'Permission Required',
+            'Please enable notifications in your device settings to receive event reminders.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => NotificationService.openSettings() },
+            ]
+          );
+          return;
+        }
+      }
+
+      // Update notification settings
+      const settings = await NotificationService.getSettings();
+      settings.enabled = value;
+      await NotificationService.updateSettings(settings);
+      
+      setNotifications(value);
+      await AsyncStorage.setItem('notifications_enabled', JSON.stringify(value));
+      
+      Alert.alert(
+        'Notifications',
+        value 
+          ? 'Notifications enabled. You will receive event reminders and check-in updates.' 
+          : 'Notifications disabled. You will not receive any alerts.'
+      );
+    } catch (error) {
+      console.error('Error toggling notifications:', error);
+      Alert.alert('Error', 'Failed to update notification settings');
+    }
   };
 
   const handleAutoBackupToggle = async (value: boolean) => {

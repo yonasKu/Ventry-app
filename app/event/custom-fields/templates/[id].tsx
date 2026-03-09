@@ -69,12 +69,12 @@ export default function FieldTemplatesScreen() {
 
   const getTemplateIcon = (name: string): string => {
     const icons: Record<string, string> = {
-      'Corporate Event': '🏢',
-      'Conference': '🎓',
-      'Restaurant/Club': '🍽️',
-      'School/University': '📚',
+      'Corporate Event': 'Corporate',
+      'Conference': 'Conference',
+      'Restaurant/Club': 'Restaurant',
+      'School/University': 'School',
     };
-    return icons[name] || '📋';
+    return icons[name] || 'Template';
   };
 
   if (isLoading) {
@@ -111,7 +111,7 @@ export default function FieldTemplatesScreen() {
       {/* Info */}
       <View style={[styles.infoBox, { backgroundColor: `${theme.colors.primary}10` }]}>
         <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-          💡 Templates provide pre-configured fields for common event types. Select one to quickly add multiple fields at once.
+          Templates provide pre-configured fields for common event types. Select one to quickly add multiple fields at once.
         </Text>
       </View>
 

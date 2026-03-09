@@ -23,20 +23,7 @@ __tests__/
 ├── unit/              # Current unit tests (with mocks)
 │   ├── services/
 │   └── utils/
-├── integration/       # NEW - Integration tests
-│   ├── database/
-│   │   ├── DatabaseService.integration.test.ts
-│   │   ├── transactions.integration.test.ts
-│   │   └── schema.integration.test.ts
-│   ├── services/
-│   │   ├── EventFlow.integration.test.ts
-│   │   ├── AttendeeFlow.integration.test.ts
-│   │   ├── CustomFields.integration.test.ts
-│   │   ├── Backup.integration.test.ts
-│   │   └── Export.integration.test.ts
-│   └── setup/
-│       ├── integration.setup.ts
-│       └── testDatabase.ts
+├── ic
 └── e2e/               # FUTURE - End-to-end tests
 ```
 

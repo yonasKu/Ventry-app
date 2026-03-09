@@ -1,12 +1,11 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { nanoid } from 'nanoid/non-secure';
 import { DatabaseService, Event, Attendee } from '../services/DatabaseService';
-import { Alert } from 'react-native';
+import NotificationService from '../services/NotificationService';
 
-// Create an instance of the DatabaseService
-console.log('Creating DatabaseService instance in EventContext');
-const dbService = new DatabaseService();
-console.log('DatabaseService instance created successfully');
+// Get the DatabaseService singleton instance
+console.log('Getting DatabaseService instance in EventContext');
+const dbService = DatabaseService.getInstance();
+console.log('DatabaseService instance retrieved successfully');
 
 // Define the EventContext type
 interface EventContextType {
@@ -39,6 +38,10 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Initialize the database and load events
   useEffect(() => {
     console.log('EventContext useEffect running - setting initialized');
+    // Initialize notification service (without requesting permissions yet)
+    NotificationService.initialize().catch(err => 
+      console.error('Error initializing notifications:', err)
+    );
     setInitialized(true);
     console.log('EventContext initialized set to true');
   }, []);
@@ -94,6 +97,21 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       console.log('Event created successfully:', newEvent);
       setEvents(prev => [newEvent, ...prev]);
+      
+      // Request notification permissions and schedule notifications
+      try {
+        const hasPermission = await NotificationService.requestPermissions();
+        if (hasPermission) {
+          await NotificationService.scheduleEventReminders(newEvent);
+          console.log('Notifications scheduled for event:', newEvent.id);
+        } else {
+          console.log('Notification permissions not granted, skipping scheduling');
+        }
+      } catch (notifError) {
+        console.error('Error scheduling notifications:', notifError);
+        // Don't fail event creation if notifications fail
+      }
+      
       return newEvent;
     } catch (err) {
       console.error('Error creating event:', err);
@@ -111,6 +129,21 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (success) {
         // If update was successful, refresh the events
         await refreshEvents();
+        
+        // Cancel old notifications and reschedule if date/time changed
+        if (eventData.date || eventData.time) {
+          try {
+            await NotificationService.cancelEventNotifications(id);
+            const updatedEvent = await dbService.getEventByIdAsync(id);
+            if (updatedEvent) {
+              await NotificationService.scheduleEventReminders(updatedEvent);
+              console.log('Notifications rescheduled for updated event:', id);
+            }
+          } catch (notifError) {
+            console.error('Error rescheduling notifications:', notifError);
+          }
+        }
+        
         return true;
       }
       return false;
@@ -125,6 +158,15 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const deleteEvent = async (id: string) => {
     try {
       console.log('Deleting event:', id);
+      
+      // Cancel all notifications for this event
+      try {
+        await NotificationService.cancelEventNotifications(id);
+        console.log('Notifications canceled for deleted event:', id);
+      } catch (notifError) {
+        console.error('Error canceling notifications:', notifError);
+      }
+      
       const success = await dbService.deleteEventAsync(id);
       
       if (success) {
@@ -168,12 +210,77 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const checkInAttendee = async (attendeeId: string, eventId: string): Promise<Attendee | null> => {
     try {
       console.log(`Checking in attendee ID: ${attendeeId} for event ID: ${eventId}`);
-      // Ensure this matches the updated DatabaseService method signature
-      return await dbService.checkInAttendeeAsync(attendeeId, eventId);
+      
+      // Get event and attendees before check-in
+      const event = await dbService.getEventByIdAsync(eventId);
+      const attendees = await dbService.getAttendeesAsync(eventId);
+      const attendee = attendees.find(a => a.id === attendeeId);
+      
+      if (!event || !attendee) {
+        return null;
+      }
+      
+      // Check if this is the first check-in
+      const isFirstCheckIn = attendees.every((a: Attendee) => !a.checked_in);
+      
+      // Perform the check-in
+      const result = await dbService.checkInAttendeeAsync(attendeeId, eventId);
+      
+      if (result && result.checked_in) {
+        // Send first check-in notification
+        if (isFirstCheckIn) {
+          try {
+            await NotificationService.sendFirstCheckInNotification(
+              attendee.name,
+              event.title,
+              eventId
+            );
+          } catch (notifError) {
+            console.error('Error sending first check-in notification:', notifError);
+          }
+        }
+        
+        // Calculate check-in rate and send milestone notifications
+        const updatedAttendees = await dbService.getAttendeesAsync(eventId);
+        const checkedInCount = updatedAttendees.filter((a: Attendee) => a.checked_in).length;
+        const totalCount = updatedAttendees.length;
+        const checkInRate = (checkedInCount / totalCount) * 100;
+        
+        // 50% milestone
+        if (checkInRate >= 50 && checkInRate < 50 + (100 / totalCount)) {
+          try {
+            await NotificationService.sendMilestoneNotification(
+              50,
+              checkedInCount,
+              totalCount,
+              event.title,
+              eventId
+            );
+          } catch (notifError) {
+            console.error('Error sending 50% milestone notification:', notifError);
+          }
+        }
+        
+        // 100% milestone
+        if (checkInRate === 100) {
+          try {
+            await NotificationService.sendMilestoneNotification(
+              100,
+              checkedInCount,
+              totalCount,
+              event.title,
+              eventId
+            );
+          } catch (notifError) {
+            console.error('Error sending 100% milestone notification:', notifError);
+          }
+        }
+      }
+      
+      return result;
     } catch (err) {
       console.error('Error checking in attendee:', err);
       setError('Failed to check in attendee');
-      // Return null on error, as ScanScreen expects Attendee | null
       return null;
     }
   };

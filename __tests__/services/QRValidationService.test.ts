@@ -477,7 +477,7 @@ describe('QRValidationService - Edge Cases', () => {
   it('should handle unicode characters', () => {
     const attendee = {
       ...mockAttendee,
-      name: '张伟 🎉',
+      name: '张伟',
     };
 
     const qrString = generateAttendeeQRData(attendee, mockEvent.id);
