@@ -11,6 +11,7 @@ export interface Event {
   notes?: string | null;
   expected_attendees?: number | null;
   category?: string | null; // Event category (Corporate Event, Conference, etc.)
+  category_data?: string | null; // JSON string of category-specific data
   created_at: string;
   updated_at: string;
   attendees_count?: number;
@@ -121,6 +122,12 @@ export class DatabaseService {
       if (!this.columnExists('events', 'category')) {
         console.log('Adding category column to events table');
         this.db.runSync('ALTER TABLE events ADD COLUMN category TEXT;');
+      }
+      
+      // Check if category_data column exists in events table
+      if (!this.columnExists('events', 'category_data')) {
+        console.log('Adding category_data column to events table');
+        this.db.runSync('ALTER TABLE events ADD COLUMN category_data TEXT;');
       }
       
       this.migrated = true;
@@ -263,7 +270,8 @@ export class DatabaseService {
       location: eventData.location || null,
       notes: eventData.notes || null,
       expected_attendees: eventData.expected_attendees || null,
-      category: eventData.category || null
+      category: eventData.category || null,
+      category_data: eventData.category_data || null
     };
 
     try {
@@ -277,6 +285,7 @@ export class DatabaseService {
         newEvent.notes || null,     // Ensure null not undefined
         newEvent.expected_attendees || null,  // Ensure null not undefined
         newEvent.category || null,  // Ensure null not undefined
+        newEvent.category_data || null,  // Ensure null not undefined
         newEvent.created_at,
         newEvent.updated_at,
         newEvent.attendees_count || 0,  // Default to 0
@@ -285,8 +294,8 @@ export class DatabaseService {
       
       // Execute the SQL query
       const result = this.db.runSync(
-        `INSERT INTO events (id, title, date, time, location, notes, expected_attendees, category, created_at, updated_at, attendees_count, checked_in_count)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        `INSERT INTO events (id, title, date, time, location, notes, expected_attendees, category, category_data, created_at, updated_at, attendees_count, checked_in_count)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
         params
       ) as SQLiteResult;
       return newEvent; // Directly return the new event object

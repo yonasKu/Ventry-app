@@ -32,6 +32,7 @@ import {
 import { useTheme } from "../../context/ThemeContext";
 import { useEvents } from "../../context/EventContext";
 import EventCountdown from "../../components/EventCountdown";
+import { CategoryDataDisplay } from "../../components/CategoryDataDisplay";
 
 export default function EventDetailScreen() {
   const theme = useTheme();
@@ -435,6 +436,13 @@ export default function EventDetailScreen() {
               </Text>
             </View>
           </View>
+        )}
+
+        {event.category && event.category_data && (
+          <CategoryDataDisplay
+            category={event.category}
+            categoryDataJson={event.category_data}
+          />
         )}
 
         <View style={styles.actionsSection}>
