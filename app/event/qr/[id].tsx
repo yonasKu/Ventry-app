@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Share, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { CaretLeft, ShareNetwork } from 'phosphor-react-native';
@@ -7,12 +7,14 @@ import QRCode from 'react-native-qrcode-svg';
 import { useTheme } from '@/context/ThemeContext';
 import { useEvents } from '@/context/EventContext';
 import { generateEventQRData } from '@/services/QRValidationService';
+import { ShareUtils } from '@/utils/shareUtils';
 
 export default function EventQRScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getEventById } = useEvents();
+  const qrRef = useRef<any>(null);
   
   const [event, setEvent] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -41,12 +43,15 @@ export default function EventQRScreen() {
     if (!event) return;
     
     try {
-      const result = await Share.share({
-        message: `Join me at ${event.title}! Scan this QR code to check in.`,
-        // In a real app, you would generate a shareable URL or image here
+      // Get QR code as base64 image
+      qrRef.current?.toDataURL((dataURL: string) => {
+        const qrCodeUri = `data:image/png;base64,${dataURL}`;
+        ShareUtils.shareQRCode(event.title, qrCodeUri);
       });
     } catch (error) {
-      console.error('Error sharing:', error);
+      console.error('Error sharing QR code:', error);
+      // Fallback to sharing event details
+      ShareUtils.shareEvent(event);
     }
   };
 
@@ -134,6 +139,7 @@ export default function EventQRScreen() {
           
           <View style={[styles.qrContainer, { backgroundColor: 'white' }]}>
             <QRCode
+              ref={qrRef}
               value={getQRValue()}
               size={250}
               color="black"

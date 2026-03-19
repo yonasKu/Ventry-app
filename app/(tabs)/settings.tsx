@@ -9,6 +9,7 @@ import {
   Alert,
   Linking,
 } from 'react-native';
+import VersionCheck from 'react-native-version-check';
 import {
   Moon,
   Sun,
@@ -197,6 +198,31 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleVersionCheck = async () => {
+    try {
+      const updateNeeded = await VersionCheck.needUpdate();
+      
+      if (updateNeeded && updateNeeded.isNeeded) {
+        Alert.alert(
+          'Update Available',
+          `Version ${updateNeeded.latestVersion} is available`,
+          [
+            { text: 'Later', style: 'cancel' },
+            { 
+              text: 'Update', 
+              onPress: () => Linking.openURL(updateNeeded.storeUrl) 
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Up to Date', 'You have the latest version!');
+      }
+    } catch (error) {
+      console.log('Error checking version:', error);
+      Alert.alert('Error', 'Could not check for updates');
+    }
+  };
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}
@@ -257,6 +283,66 @@ export default function SettingsScreen() {
             />
           </View>
         </View>
+
+        {/* Test Rich Notifications */}
+        {notifications && (
+          <>
+            <TouchableOpacity
+              style={[styles.settingCard, { backgroundColor: theme.colors.backgroundPrimary }]}
+              onPress={async () => {
+                await NotificationService.sendRichEventReminder({
+                  id: 'test',
+                  title: 'Tech Conference 2026',
+                  time: '14:00',
+                  location: 'Convention Center',
+                  attendees_count: 150,
+                } as any);
+              }}
+            >
+              <View style={styles.settingRow}>
+                <View style={styles.settingLeft}>
+                  <Bell size={24} color={theme.colors.success} weight="regular" />
+                  <View style={styles.settingText}>
+                    <Text style={[styles.settingTitle, { color: theme.colors.textPrimary }]}>
+                      Test Event Reminder
+                    </Text>
+                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                      Try rich notification with actions
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.settingCard, { backgroundColor: theme.colors.backgroundPrimary }]}
+              onPress={async () => {
+                await NotificationService.sendRichMilestoneNotification(
+                  'Halfway There! 🎯',
+                  '75 of 150 attendees have checked in to Tech Conference 2026',
+                  'test',
+                  50,
+                  75,
+                  150
+                );
+              }}
+            >
+              <View style={styles.settingRow}>
+                <View style={styles.settingLeft}>
+                  <Bell size={24} color={theme.colors.accent} weight="regular" />
+                  <View style={styles.settingText}>
+                    <Text style={[styles.settingTitle, { color: theme.colors.textPrimary }]}>
+                      Test Milestone Alert
+                    </Text>
+                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                      Try milestone notification with progress
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </>
+        )}
 
         {/* Auto Backup */}
         <View style={[styles.settingCard, { backgroundColor: theme.colors.backgroundPrimary }]}>
@@ -389,6 +475,26 @@ export default function SettingsScreen() {
                 </Text>
                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
                   Get help and send feedback
+                </Text>
+              </View>
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        {/* Version Check */}
+        <TouchableOpacity
+          style={[styles.settingCard, { backgroundColor: theme.colors.backgroundPrimary }]}
+          onPress={handleVersionCheck}
+        >
+          <View style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <Info size={24} color={theme.colors.accent} weight="regular" />
+              <View style={styles.settingText}>
+                <Text style={[styles.settingTitle, { color: theme.colors.textPrimary }]}>
+                  Check for Updates
+                </Text>
+                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                  Version 1.0.0
                 </Text>
               </View>
             </View>

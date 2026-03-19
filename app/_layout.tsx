@@ -11,12 +11,15 @@ import { useEffect } from "react";
 import "react-native-reanimated";
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
 import { useColorScheme } from "@/components/useColorScheme";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { EventProvider } from "@/context/EventContext";
 import { initDatabase } from "../services/DatabaseService";
+import NotificationService from "../services/NotificationService";
 import '../i18n/config'; // Initialize i18n
+import { Toaster } from 'sonner-native';
 
 // Initialize the database on app startup
 try {
@@ -27,6 +30,15 @@ try {
   console.error("CRITICAL: Failed to initialize database on app start:", error);
   // Depending on your app's needs, you might want to show an error message
   // or prevent the app from fully loading if the DB is essential.
+}
+
+// Initialize notification service
+try {
+  console.log("Initializing notification service...");
+  NotificationService.initialize();
+  console.log("Notification service initialized successfully.");
+} catch (error) {
+  console.error("Failed to initialize notification service:", error);
 }
 
 export {
@@ -81,19 +93,22 @@ function RootLayoutNav() {
       <SafeAreaProvider>
         <ThemeProvider>
           <EventProvider>
-            <NavigationThemeProvider
-              value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
-            >
-              <Stack>
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-                <Stack.Screen
-                  name="create-event"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen name="event" options={{ headerShown: false }} />
-              </Stack>
-            </NavigationThemeProvider>
+            <BottomSheetModalProvider>
+              <NavigationThemeProvider
+                value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
+              >
+                <Stack>
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                  <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+                  <Stack.Screen
+                    name="create-event"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen name="event" options={{ headerShown: false }} />
+                </Stack>
+                <Toaster />
+              </NavigationThemeProvider>
+            </BottomSheetModalProvider>
           </EventProvider>
         </ThemeProvider>
       </SafeAreaProvider>

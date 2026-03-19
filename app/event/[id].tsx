@@ -28,11 +28,13 @@ import {
   Scan,
   FileText,
   ChartBar,
+  ShareNetwork,
 } from "phosphor-react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { useEvents } from "../../context/EventContext";
 import EventCountdown from "../../components/EventCountdown";
 import { CategoryDataDisplay } from "../../components/CategoryDataDisplay";
+import { ShareUtils } from "../../utils/shareUtils";
 
 export default function EventDetailScreen() {
   const theme = useTheme();
@@ -578,6 +580,35 @@ export default function EventDetailScreen() {
                 ]}
               >
                 View Stats
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.actionButtonCard,
+                { backgroundColor: theme.colors.backgroundPrimary },
+              ]}
+              onPress={() => ShareUtils.shareEvent(event)}
+            >
+              <View
+                style={[
+                  styles.actionIconContainer,
+                  { backgroundColor: `${theme.colors.success}15` },
+                ]}
+              >
+                <ShareNetwork
+                  size={24}
+                  color={theme.colors.success}
+                  weight="fill"
+                />
+              </View>
+              <Text
+                style={[
+                  styles.actionButtonLabel,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                Share Event
               </Text>
             </TouchableOpacity>
 

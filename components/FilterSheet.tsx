@@ -1,29 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
-  Modal,
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
-  Animated,
-  Dimensions,
   TextInput,
 } from 'react-native';
+import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
+import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { X } from 'phosphor-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { Event } from '../services/DatabaseService';
-
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export interface FilterOptions {
   selectedEventId: string | null;
   timeFilter: 'week' | 'month' | 'year' | 'all';
   category: string | null;
   status: 'upcoming' | 'past' | 'all';
-  checkInStatus: 'all' | 'high' | 'medium' | 'low'; // Check-in rate filter
-  attendeeRange: { min: number | null; max: number | null }; // Attendee count range
-  sortBy: 'date' | 'name' | 'attendees' | 'checkInRate'; // Sort option
+  checkInStatus: 'all' | 'high' | 'medium' | 'low';
+  attendeeRange: { min: number | null; max: number | null };
+  sortBy: 'date' | 'name' | 'attendees' | 'checkInRate';
 }
 
 interface FilterSheetProps {
@@ -64,29 +60,39 @@ export default function FilterSheet({
   showSortOptions = false,
 }: FilterSheetProps) {
   const theme = useTheme();
-  const [slideAnim] = useState(new Animated.Value(SCREEN_HEIGHT));
+  const bottomSheetRef = useRef<BottomSheet>(null);
   const [localFilters, setLocalFilters] = useState<FilterOptions>(currentFilters);
 
+  // Snap points for the bottom sheet
+  const snapPoints = useMemo(() => ['50%', '85%'], []);
+
+  // Handle sheet changes
   useEffect(() => {
     if (visible) {
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 11,
-      }).start();
+      bottomSheetRef.current?.snapToIndex(0);
     } else {
-      Animated.timing(slideAnim, {
-        toValue: SCREEN_HEIGHT,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
+      bottomSheetRef.current?.close();
     }
   }, [visible]);
 
+  // Update local filters when current filters change
   useEffect(() => {
     setLocalFilters(currentFilters);
   }, [currentFilters]);
+
+  // Backdrop component
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        opacity={0.5}
+        onPress={onClose}
+      />
+    ),
+    [onClose]
+  );
 
   const handleReset = () => {
     setLocalFilters({
@@ -105,429 +111,398 @@ export default function FilterSheet({
     onClose();
   };
 
-  if (!visible) return null;
-
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
+    <BottomSheet
+      ref={bottomSheetRef}
+      index={-1}
+      snapPoints={snapPoints}
+      enablePanDownToClose
+      onClose={onClose}
+      backdropComponent={renderBackdrop}
+      backgroundStyle={{ backgroundColor: theme.colors.backgroundPrimary }}
+      handleIndicatorStyle={{ display: 'none' }}
     >
-      <View style={styles.overlay}>
-        <TouchableOpacity
-          style={styles.backdrop}
-          activeOpacity={1}
-          onPress={onClose}
-        />
-        <Animated.View
-          style={[
-            styles.sheetContainer,
-            { backgroundColor: theme.colors.backgroundPrimary },
-            { transform: [{ translateY: slideAnim }] },
-          ]}
-        >
-          {/* Header */}
-          <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-            <TouchableOpacity onPress={handleReset}>
-              <Text style={[styles.resetText, { color: theme.colors.primary }]}>
-                Reset
-              </Text>
-            </TouchableOpacity>
-            <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-              Filters
-            </Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <X size={24} color={theme.colors.textPrimary} weight="bold" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            {/* Filter by Event */}
-            {showEventFilter && (
-              <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-                  Filter By Event
-                </Text>
-                <View style={styles.chipContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: localFilters.selectedEventId === null
-                          ? theme.colors.primary
-                          : theme.colors.backgroundSecondary,
-                        borderColor: theme.colors.border,
-                      },
-                    ]}
-                    onPress={() => setLocalFilters({ ...localFilters, selectedEventId: null })}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        {
-                          color: localFilters.selectedEventId === null
-                            ? 'white'
-                            : theme.colors.textPrimary,
-                        },
-                      ]}
-                    >
-                      All Events
-                    </Text>
-                  </TouchableOpacity>
-                  {events.map((event) => (
-                    <TouchableOpacity
-                      key={event.id}
-                      style={[
-                        styles.chip,
-                        {
-                          backgroundColor: localFilters.selectedEventId === event.id
-                            ? theme.colors.primary
-                            : theme.colors.backgroundSecondary,
-                          borderColor: theme.colors.border,
-                        },
-                      ]}
-                      onPress={() =>
-                        setLocalFilters({ ...localFilters, selectedEventId: event.id })
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.chipText,
-                          {
-                            color: localFilters.selectedEventId === event.id
-                              ? 'white'
-                              : theme.colors.textPrimary,
-                          },
-                        ]}
-                      >
-                        {event.title}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {/* Filter by Time Period */}
-            {showTimeFilter && (
-              <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-                  Filter By Time Period
-                </Text>
-                <View style={styles.chipContainer}>
-                  {(['week', 'month', 'year', 'all'] as const).map((period) => (
-                    <TouchableOpacity
-                      key={period}
-                      style={[
-                        styles.chip,
-                        {
-                          backgroundColor: localFilters.timeFilter === period
-                            ? theme.colors.primary
-                            : theme.colors.backgroundSecondary,
-                          borderColor: theme.colors.border,
-                        },
-                      ]}
-                      onPress={() => setLocalFilters({ ...localFilters, timeFilter: period })}
-                    >
-                      <Text
-                        style={[
-                          styles.chipText,
-                          {
-                            color: localFilters.timeFilter === period
-                              ? 'white'
-                              : theme.colors.textPrimary,
-                          },
-                        ]}
-                      >
-                        {period.charAt(0).toUpperCase() + period.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {/* Filter by Category */}
-            {showCategoryFilter && (
-              <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-                  Filter By Category
-                </Text>
-                <View style={styles.chipContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: localFilters.category === null
-                          ? theme.colors.primary
-                          : theme.colors.backgroundSecondary,
-                        borderColor: theme.colors.border,
-                      },
-                    ]}
-                    onPress={() => setLocalFilters({ ...localFilters, category: null })}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        {
-                          color: localFilters.category === null
-                            ? 'white'
-                            : theme.colors.textPrimary,
-                        },
-                      ]}
-                    >
-                      All Categories
-                    </Text>
-                  </TouchableOpacity>
-                  {EVENT_CATEGORIES.map((category) => (
-                    <TouchableOpacity
-                      key={category}
-                      style={[
-                        styles.chip,
-                        {
-                          backgroundColor: localFilters.category === category
-                            ? theme.colors.primary
-                            : theme.colors.backgroundSecondary,
-                          borderColor: theme.colors.border,
-                        },
-                      ]}
-                      onPress={() => setLocalFilters({ ...localFilters, category })}
-                    >
-                      <Text
-                        style={[
-                          styles.chipText,
-                          {
-                            color: localFilters.category === category
-                              ? 'white'
-                              : theme.colors.textPrimary,
-                          },
-                        ]}
-                      >
-                        {category}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {/* Filter by Status */}
-            {showStatusFilter && (
-              <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-                  Filter By Status
-                </Text>
-                <View style={styles.chipContainer}>
-                  {(['all', 'upcoming', 'past'] as const).map((status) => (
-                    <TouchableOpacity
-                      key={status}
-                      style={[
-                        styles.chip,
-                        {
-                          backgroundColor: localFilters.status === status
-                            ? theme.colors.primary
-                            : theme.colors.backgroundSecondary,
-                          borderColor: theme.colors.border,
-                        },
-                      ]}
-                      onPress={() => setLocalFilters({ ...localFilters, status })}
-                    >
-                      <Text
-                        style={[
-                          styles.chipText,
-                          {
-                            color: localFilters.status === status
-                              ? 'white'
-                              : theme.colors.textPrimary,
-                          },
-                        ]}
-                      >
-                        {status.charAt(0).toUpperCase() + status.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {/* Filter by Check-in Rate */}
-            {showCheckInFilter && (
-              <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-                  Filter By Check-in Rate
-                </Text>
-                <View style={styles.chipContainer}>
-                  {([
-                    { value: 'all', label: 'All' },
-                    { value: 'high', label: 'High (>70%)' },
-                    { value: 'medium', label: 'Medium (30-70%)' },
-                    { value: 'low', label: 'Low (<30%)' },
-                  ] as const).map((option) => (
-                    <TouchableOpacity
-                      key={option.value}
-                      style={[
-                        styles.chip,
-                        {
-                          backgroundColor: localFilters.checkInStatus === option.value
-                            ? theme.colors.primary
-                            : theme.colors.backgroundSecondary,
-                          borderColor: theme.colors.border,
-                        },
-                      ]}
-                      onPress={() => setLocalFilters({ ...localFilters, checkInStatus: option.value })}
-                    >
-                      <Text
-                        style={[
-                          styles.chipText,
-                          {
-                            color: localFilters.checkInStatus === option.value
-                              ? 'white'
-                              : theme.colors.textPrimary,
-                          },
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {/* Filter by Attendee Count Range */}
-            {showAttendeeRangeFilter && (
-              <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-                  Filter By Attendee Count
-                </Text>
-                <View style={styles.rangeContainer}>
-                  <View style={styles.rangeInputContainer}>
-                    <Text style={[styles.rangeLabel, { color: theme.colors.textSecondary }]}>Min</Text>
-                    <TextInput
-                      style={[styles.rangeInput, { 
-                        color: theme.colors.textPrimary,
-                        borderColor: theme.colors.border,
-                        backgroundColor: theme.colors.backgroundSecondary,
-                      }]}
-                      placeholder="0"
-                      placeholderTextColor={theme.colors.textTertiary}
-                      keyboardType="number-pad"
-                      value={localFilters.attendeeRange.min?.toString() || ''}
-                      onChangeText={(text) => {
-                        const num = text ? parseInt(text) : null;
-                        setLocalFilters({
-                          ...localFilters,
-                          attendeeRange: { ...localFilters.attendeeRange, min: num },
-                        });
-                      }}
-                    />
-                  </View>
-                  <Text style={[styles.rangeSeparator, { color: theme.colors.textSecondary }]}>to</Text>
-                  <View style={styles.rangeInputContainer}>
-                    <Text style={[styles.rangeLabel, { color: theme.colors.textSecondary }]}>Max</Text>
-                    <TextInput
-                      style={[styles.rangeInput, { 
-                        color: theme.colors.textPrimary,
-                        borderColor: theme.colors.border,
-                        backgroundColor: theme.colors.backgroundSecondary,
-                      }]}
-                      placeholder="∞"
-                      placeholderTextColor={theme.colors.textTertiary}
-                      keyboardType="number-pad"
-                      value={localFilters.attendeeRange.max?.toString() || ''}
-                      onChangeText={(text) => {
-                        const num = text ? parseInt(text) : null;
-                        setLocalFilters({
-                          ...localFilters,
-                          attendeeRange: { ...localFilters.attendeeRange, max: num },
-                        });
-                      }}
-                    />
-                  </View>
-                </View>
-              </View>
-            )}
-
-            {/* Sort Options */}
-            {showSortOptions && (
-              <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-                  Sort By
-                </Text>
-                <View style={styles.chipContainer}>
-                  {([
-                    { value: 'date', label: 'Date' },
-                    { value: 'name', label: 'Name' },
-                    { value: 'attendees', label: 'Attendees' },
-                    { value: 'checkInRate', label: 'Check-in Rate' },
-                  ] as const).map((option) => (
-                    <TouchableOpacity
-                      key={option.value}
-                      style={[
-                        styles.chip,
-                        {
-                          backgroundColor: localFilters.sortBy === option.value
-                            ? theme.colors.primary
-                            : theme.colors.backgroundSecondary,
-                          borderColor: theme.colors.border,
-                        },
-                      ]}
-                      onPress={() => setLocalFilters({ ...localFilters, sortBy: option.value })}
-                    >
-                      <Text
-                        style={[
-                          styles.chipText,
-                          {
-                            color: localFilters.sortBy === option.value
-                              ? 'white'
-                              : theme.colors.textPrimary,
-                          },
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
-          </ScrollView>
-
-          {/* Apply Button */}
-          <View style={[styles.footer, { borderTopColor: theme.colors.border }]}>
-            <TouchableOpacity
-              style={[styles.applyButton, { backgroundColor: theme.colors.primary }]}
-              onPress={handleApply}
-            >
-              <Text style={styles.applyButtonText}>Apply Filters</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
+      {/* Header */}
+      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+        <TouchableOpacity onPress={handleReset}>
+          <Text style={[styles.resetText, { color: theme.colors.primary }]}>
+            Reset
+          </Text>
+        </TouchableOpacity>
+        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+          Filters
+        </Text>
+        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <X size={24} color={theme.colors.textPrimary} weight="bold" />
+        </TouchableOpacity>
       </View>
-    </Modal>
+
+      <BottomSheetScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Filter by Event */}
+        {showEventFilter && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
+              Filter By Event
+            </Text>
+            <View style={styles.chipContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor: localFilters.selectedEventId === null
+                      ? theme.colors.primary
+                      : theme.colors.backgroundSecondary,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+                onPress={() => setLocalFilters({ ...localFilters, selectedEventId: null })}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    {
+                      color: localFilters.selectedEventId === null
+                        ? 'white'
+                        : theme.colors.textPrimary,
+                    },
+                  ]}
+                >
+                  All Events
+                </Text>
+              </TouchableOpacity>
+              {events.map((event) => (
+                <TouchableOpacity
+                  key={event.id}
+                  style={[
+                    styles.chip,
+                    {
+                      backgroundColor: localFilters.selectedEventId === event.id
+                        ? theme.colors.primary
+                        : theme.colors.backgroundSecondary,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                  onPress={() =>
+                    setLocalFilters({ ...localFilters, selectedEventId: event.id })
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      {
+                        color: localFilters.selectedEventId === event.id
+                          ? 'white'
+                          : theme.colors.textPrimary,
+                      },
+                    ]}
+                  >
+                    {event.title}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Filter by Time Period */}
+        {showTimeFilter && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
+              Filter By Time Period
+            </Text>
+            <View style={styles.chipContainer}>
+              {(['week', 'month', 'year', 'all'] as const).map((period) => (
+                <TouchableOpacity
+                  key={period}
+                  style={[
+                    styles.chip,
+                    {
+                      backgroundColor: localFilters.timeFilter === period
+                        ? theme.colors.primary
+                        : theme.colors.backgroundSecondary,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                  onPress={() => setLocalFilters({ ...localFilters, timeFilter: period })}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      {
+                        color: localFilters.timeFilter === period
+                          ? 'white'
+                          : theme.colors.textPrimary,
+                      },
+                    ]}
+                  >
+                    {period.charAt(0).toUpperCase() + period.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Filter by Category */}
+        {showCategoryFilter && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
+              Filter By Category
+            </Text>
+            <View style={styles.chipContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor: localFilters.category === null
+                      ? theme.colors.primary
+                      : theme.colors.backgroundSecondary,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+                onPress={() => setLocalFilters({ ...localFilters, category: null })}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    {
+                      color: localFilters.category === null
+                        ? 'white'
+                        : theme.colors.textPrimary,
+                    },
+                  ]}
+                >
+                  All Categories
+                </Text>
+              </TouchableOpacity>
+              {EVENT_CATEGORIES.map((category) => (
+                <TouchableOpacity
+                  key={category}
+                  style={[
+                    styles.chip,
+                    {
+                      backgroundColor: localFilters.category === category
+                        ? theme.colors.primary
+                        : theme.colors.backgroundSecondary,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                  onPress={() => setLocalFilters({ ...localFilters, category })}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      {
+                        color: localFilters.category === category
+                          ? 'white'
+                          : theme.colors.textPrimary,
+                      },
+                    ]}
+                  >
+                    {category}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Filter by Status */}
+        {showStatusFilter && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
+              Filter By Status
+            </Text>
+            <View style={styles.chipContainer}>
+              {(['all', 'upcoming', 'past'] as const).map((status) => (
+                <TouchableOpacity
+                  key={status}
+                  style={[
+                    styles.chip,
+                    {
+                      backgroundColor: localFilters.status === status
+                        ? theme.colors.primary
+                        : theme.colors.backgroundSecondary,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                  onPress={() => setLocalFilters({ ...localFilters, status })}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      {
+                        color: localFilters.status === status
+                          ? 'white'
+                          : theme.colors.textPrimary,
+                      },
+                    ]}
+                  >
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Filter by Check-in Rate */}
+        {showCheckInFilter && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
+              Filter By Check-in Rate
+            </Text>
+            <View style={styles.chipContainer}>
+              {([
+                { value: 'all', label: 'All' },
+                { value: 'high', label: 'High (>70%)' },
+                { value: 'medium', label: 'Medium (30-70%)' },
+                { value: 'low', label: 'Low (<30%)' },
+              ] as const).map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.chip,
+                    {
+                      backgroundColor: localFilters.checkInStatus === option.value
+                        ? theme.colors.primary
+                        : theme.colors.backgroundSecondary,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                  onPress={() => setLocalFilters({ ...localFilters, checkInStatus: option.value })}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      {
+                        color: localFilters.checkInStatus === option.value
+                          ? 'white'
+                          : theme.colors.textPrimary,
+                      },
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Filter by Attendee Count Range */}
+        {showAttendeeRangeFilter && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
+              Filter By Attendee Count
+            </Text>
+            <View style={styles.rangeContainer}>
+              <View style={styles.rangeInputContainer}>
+                <Text style={[styles.rangeLabel, { color: theme.colors.textSecondary }]}>Min</Text>
+                <TextInput
+                  style={[styles.rangeInput, { 
+                    color: theme.colors.textPrimary,
+                    borderColor: theme.colors.border,
+                    backgroundColor: theme.colors.backgroundSecondary,
+                  }]}
+                  placeholder="0"
+                  placeholderTextColor={theme.colors.textTertiary}
+                  keyboardType="number-pad"
+                  value={localFilters.attendeeRange.min?.toString() || ''}
+                  onChangeText={(text) => {
+                    const num = text ? parseInt(text) : null;
+                    setLocalFilters({
+                      ...localFilters,
+                      attendeeRange: { ...localFilters.attendeeRange, min: num },
+                    });
+                  }}
+                />
+              </View>
+              <Text style={[styles.rangeSeparator, { color: theme.colors.textSecondary }]}>to</Text>
+              <View style={styles.rangeInputContainer}>
+                <Text style={[styles.rangeLabel, { color: theme.colors.textSecondary }]}>Max</Text>
+                <TextInput
+                  style={[styles.rangeInput, { 
+                    color: theme.colors.textPrimary,
+                    borderColor: theme.colors.border,
+                    backgroundColor: theme.colors.backgroundSecondary,
+                  }]}
+                  placeholder="∞"
+                  placeholderTextColor={theme.colors.textTertiary}
+                  keyboardType="number-pad"
+                  value={localFilters.attendeeRange.max?.toString() || ''}
+                  onChangeText={(text) => {
+                    const num = text ? parseInt(text) : null;
+                    setLocalFilters({
+                      ...localFilters,
+                      attendeeRange: { ...localFilters.attendeeRange, max: num },
+                    });
+                  }}
+                />
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Sort Options */}
+        {showSortOptions && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
+              Sort By
+            </Text>
+            <View style={styles.chipContainer}>
+              {([
+                { value: 'date', label: 'Date' },
+                { value: 'name', label: 'Name' },
+                { value: 'attendees', label: 'Attendees' },
+                { value: 'checkInRate', label: 'Check-in Rate' },
+              ] as const).map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.chip,
+                    {
+                      backgroundColor: localFilters.sortBy === option.value
+                        ? theme.colors.primary
+                        : theme.colors.backgroundSecondary,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                  onPress={() => setLocalFilters({ ...localFilters, sortBy: option.value })}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      {
+                        color: localFilters.sortBy === option.value
+                          ? 'white'
+                          : theme.colors.textPrimary,
+                      },
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Apply Button */}
+        <View style={[styles.footer, { borderTopColor: theme.colors.border }]}>
+          <TouchableOpacity
+            style={[styles.applyButton, { backgroundColor: theme.colors.primary }]}
+            onPress={handleApply}
+          >
+            <Text style={styles.applyButtonText}>Apply Filters</Text>
+          </TouchableOpacity>
+        </View>
+      </BottomSheetScrollView>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  sheetContainer: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: SCREEN_HEIGHT * 0.85,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 5,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -575,9 +550,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   footer: {
-    paddingHorizontal: 20,
     paddingVertical: 16,
-    borderTopWidth: 1,
+    marginTop: 8,
   },
   applyButton: {
     paddingVertical: 16,

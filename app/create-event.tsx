@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, TouchableOpacity, Text, View, Alert, ActivityIndicator, StatusBar } from 'react-native';
+import { StyleSheet, TouchableOpacity, Text, View, ActivityIndicator, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { CaretLeft, Check } from 'phosphor-react-native';
@@ -9,6 +9,7 @@ import { CategorySelectionScreen } from '../components/CategorySelectionScreen';
 import { DynamicEventForm } from '../components/forms/DynamicEventForm';
 import { EventCategory, FormFieldValue } from '../types/FormTypes';
 import { getFormConfig } from '../config/CategoryFormConfigs';
+import { showToast } from '../utils/toast';
 
 export default function CreateEventScreen() {
   const theme = useTheme();
@@ -36,7 +37,7 @@ export default function CreateEventScreen() {
 
   const handleCreateEvent = async () => {
     if (!isFormValid) {
-      Alert.alert('Incomplete Form', 'Please fill in all required fields.');
+      showToast.warning('Please fill in all required fields');
       return;
     }
 
@@ -80,27 +81,15 @@ export default function CreateEventScreen() {
       
       console.log('Event created successfully:', newEvent);
       
-      Alert.alert(
-        'Success',
-        'Your event has been created successfully!',
-        [
-          { 
-            text: 'OK', 
-            onPress: () => {
-              router.back();
-            }
-          }
-        ]
-      );
+      // Show success toast
+      showToast.success('Event created successfully!');
+      
+      // Navigate back after success
+      router.back();
     } catch (error) {
       console.error('Error creating event:', error);
       const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-      Alert.alert(
-        'Unable to Create Event', 
-        errorMessage.includes('required') || errorMessage.includes('Invalid') 
-          ? errorMessage 
-          : 'Something went wrong while creating your event. Please try again.'
-      );
+      showToast.error('Unable to create event', errorMessage);
     } finally {
       setIsSubmitting(false);
     }

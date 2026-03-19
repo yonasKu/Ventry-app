@@ -5,6 +5,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { BackupService, BackupRecord } from '@/services/BackupService';
 import { formatRelativeTime } from '@/utils/dateTimeUtils';
 import { handleError } from '@/utils/errorUtils';
+import { showToast } from '@/utils/toast';
 
 export default function BackupScreen() {
   const theme = useTheme();
@@ -42,9 +43,9 @@ export default function BackupScreen() {
       setLoading(true);
       await backupService.exportBackup();
       await loadBackupHistory();
-      Alert.alert('Success', 'Backup created and exported successfully!');
+      showToast.success('Backup created and exported successfully!');
     } catch (error) {
-      Alert.alert('Error', handleError(error));
+      showToast.error('Failed to create backup', handleError(error));
     } finally {
       setLoading(false);
     }
@@ -65,20 +66,20 @@ export default function BackupScreen() {
               const result = await backupService.selectAndRestore();
               
               if (result.success) {
-                Alert.alert(
+                showToast.success(
                   'Restore Complete',
-                  `Imported:\n• ${result.imported.events} events\n• ${result.imported.attendees} attendees\n• ${result.imported.custom_fields} custom fields\n• ${result.imported.templates} templates`
+                  `Imported: ${result.imported.events} events, ${result.imported.attendees} attendees`
                 );
               } else {
-                Alert.alert(
+                showToast.warning(
                   'Restore Completed with Errors',
-                  `Some items could not be restored:\n${result.errors.join('\n')}`
+                  `Some items could not be restored`
                 );
               }
               
               await loadBackupHistory();
             } catch (error) {
-              Alert.alert('Error', handleError(error));
+              showToast.error('Restore failed', handleError(error));
             } finally {
               setLoading(false);
             }
@@ -102,9 +103,9 @@ export default function BackupScreen() {
               setLoading(true);
               const deletedCount = await backupService.cleanupOldBackups(30);
               await loadBackupHistory(); // Refresh the backup history
-              Alert.alert('Success', `Deleted ${deletedCount} old backup file(s)`);
+              showToast.success(`Deleted ${deletedCount} old backup file(s)`);
             } catch (error) {
-              Alert.alert('Error', handleError(error));
+              showToast.error('Cleanup failed', handleError(error));
             } finally {
               setLoading(false);
             }
@@ -118,9 +119,9 @@ export default function BackupScreen() {
     try {
       await backupService.setDeviceName(deviceName);
       setEditingDeviceName(false);
-      Alert.alert('Success', 'Device name updated');
+      showToast.success('Device name updated');
     } catch (error) {
-      Alert.alert('Error', handleError(error));
+      showToast.error('Failed to update device name', handleError(error));
     }
   };
 

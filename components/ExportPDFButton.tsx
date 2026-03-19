@@ -4,12 +4,12 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   View
 } from 'react-native';
 import { FileText } from 'phosphor-react-native';
 import { useTheme } from '@/context/ThemeContext';
 import PDFService from '@/services/PDFService';
+import { showToast } from '@/utils/toast';
 
 interface ExportPDFButtonProps {
   type: 'statistics' | 'event';
@@ -51,12 +51,8 @@ const ExportPDFButton: React.FC<ExportPDFButtonProps> = ({
       // Share the PDF
       await PDFService.sharePDF(filePath);
       
-      // Show success message
-      Alert.alert(
-        'Success',
-        'PDF report generated and ready to share!',
-        [{ text: 'OK' }]
-      );
+      // Show success toast
+      showToast.success('PDF report generated and ready to share!');
       
       // Call success callback
       onSuccess?.(filePath);
@@ -75,12 +71,8 @@ const ExportPDFButton: React.FC<ExportPDFButtonProps> = ({
         errorMessage = 'Event not found. Please try again.';
       }
       
-      // Show error alert
-      Alert.alert(
-        'Export Failed',
-        errorMessage,
-        [{ text: 'OK' }]
-      );
+      // Show error toast
+      showToast.error('Export Failed', errorMessage);
       
       // Call error callback
       onError?.(error.message);

@@ -8,10 +8,11 @@ import {
   ActivityIndicator,
   TouchableOpacity
 } from 'react-native';
-import { Funnel } from 'phosphor-react-native';
+import { Funnel, ShareNetwork } from 'phosphor-react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useEvents } from '@/context/EventContext';
-import { parseISO, isThisWeek, isThisMonth, differenceInDays } from 'date-fns';
+import { useEventStore } from '@/store/useEventStore';
+import { parseISO, isThisWeek, isThisMonth, differenceInDays, isFuture, format } from 'date-fns';
 import { VictoryTheme } from 'victory-native';
 import StatsHeader from '@/components/statistics/StatsHeader';
 import TimeFilterComponent from '@/components/statistics/TimeFilter';
@@ -30,6 +31,7 @@ import CheckinRateTrendChart from '@/components/statistics/CheckinRateTrendChart
 import ReportingService from '@/services/ReportingService';
 import ExportPDFButton from '@/components/ExportPDFButton';
 import FilterSheet, { FilterOptions } from '@/components/FilterSheet';
+import { ShareUtils } from '@/utils/shareUtils';
 
 import { useLocalSearchParams } from 'expo-router';
 
@@ -39,15 +41,33 @@ export default function StatsScreen() {
   const { eventId } = useLocalSearchParams<{ eventId?: string }>();
   const [refreshing, setRefreshing] = useState(false);
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
+  
+  // Use Zustand for filter state management
+  const zustandFilters = useEventStore((state) => state.filters);
+  const setTimeFilter = useEventStore((state) => state.setTimeFilter);
+  const setCategory = useEventStore((state) => state.setCategory);
+  const setStatus = useEventStore((state) => state.setStatus);
+  
+  // Local state for full filter options (for FilterSheet compatibility)
   const [filters, setFilters] = useState<FilterOptions>({
     selectedEventId: eventId || null,
-    timeFilter: 'month',
-    category: null,
-    status: 'all',
+    timeFilter: zustandFilters.timeFilter,
+    category: zustandFilters.category,
+    status: zustandFilters.status,
     checkInStatus: 'all',
     attendeeRange: { min: null, max: null },
     sortBy: 'date',
   });
+
+  // Sync Zustand filters with local filters
+  useEffect(() => {
+    setFilters(prev => ({
+      ...prev,
+      timeFilter: zustandFilters.timeFilter,
+      category: zustandFilters.category,
+      status: zustandFilters.status,
+    }));
+  }, [zustandFilters]);
 
   // Update filters when eventId param changes
   useEffect(() => {
@@ -60,6 +80,15 @@ export default function StatsScreen() {
     setRefreshing(true);
     await refreshEvents();
     setRefreshing(false);
+  };
+  
+  // Handle filter apply - update both local and Zustand state
+  const handleApplyFilters = (newFilters: FilterOptions) => {
+    setFilters(newFilters);
+    // Update Zustand store
+    setTimeFilter(newFilters.timeFilter);
+    setCategory(newFilters.category);
+    setStatus(newFilters.status);
   };
 
   // Filter events based on selected filters
@@ -86,10 +115,8 @@ export default function StatsScreen() {
     return filtered;
   }, [events, filters]);
 
-  // Calculate key stats using ReportingService
+  // Calculate key stats using filtered events
   const stats = useMemo(() => {
-    const overallStats = ReportingService.getOverallStats();
-    
     // Calculate vs previous period
     const previousPeriodEvents = events.filter(event => {
       const eventDate = parseISO(event.date);
@@ -108,7 +135,7 @@ export default function StatsScreen() {
       
     const eventsGrowthPositive = Number(eventsGrowth) >= 0;
     
-    // Find most recent and popular events
+    // Find most recent and popular events from filtered data
     const recentEvents = [...filteredEvents].sort((a, b) => 
       parseISO(b.date).getTime() - parseISO(a.date).getTime()
     );
@@ -118,62 +145,92 @@ export default function StatsScreen() {
       (b.attendees_count || 0) - (a.attendees_count || 0)
     )[0];
     
+    // Calculate average attendance from filtered events
+    const avgAttendeesPerEvent = filteredEvents.length > 0
+      ? (filteredEvents.reduce((sum, e) => sum + (e.attendees_count || 0), 0) / filteredEvents.length).toFixed(1)
+      : '0';
+    
+    // Count active (upcoming) events from filtered events
+    const activeEvents = filteredEvents.filter(e => isFuture(parseISO(e.date))).length;
+    
     return { 
       totalEvents: filteredEvents.length,
       totalAttendees: filteredEvents.reduce((sum, e) => sum + (e.attendees_count || 0), 0),
       totalCheckedIn: filteredEvents.reduce((sum, e) => sum + (e.checked_in_count || 0), 0),
-      checkInRate: filteredEvents.length > 0 
+      checkInRate: filteredEvents.reduce((sum, e) => sum + (e.attendees_count || 0), 0) > 0
         ? ((filteredEvents.reduce((sum, e) => sum + (e.checked_in_count || 0), 0) / 
             filteredEvents.reduce((sum, e) => sum + (e.attendees_count || 0), 0)) * 100).toFixed(1)
         : '0',
       eventsGrowth,
       eventsGrowthPositive,
-      avgAttendeesPerEvent: overallStats.averageAttendance,
+      avgAttendeesPerEvent: Number(avgAttendeesPerEvent),
       mostRecentEvent,
       mostPopularEvent,
-      activeEvents: overallStats.upcomingEvents,
+      activeEvents,
     };
   }, [filteredEvents, events, filters.timeFilter]);
 
-  // Format event data for charts using ReportingService
+  // Format event data for charts using FILTERED events only
   const chartData = useMemo(() => {
     const sortedEvents = [...filteredEvents].sort(
       (a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()
     );
 
-    // Data for AttendanceTrendChart - use ReportingService
+    // Data for AttendanceTrendChart - calculate from filteredEvents
     const days = filters.timeFilter === 'week' ? 7 : filters.timeFilter === 'month' ? 30 : filters.timeFilter === 'year' ? 365 : 90;
-    const attendanceTrends = ReportingService.getAttendanceTrends(days);
-    const trendData = attendanceTrends.map((trend: { date: string; attendees: number }) => ({
-      x: parseISO(trend.date),
-      y: trend.attendees,
+    // Group filtered events by date
+    const eventsByDate = filteredEvents.reduce((acc, event) => {
+      const dateKey = format(parseISO(event.date), 'yyyy-MM-dd');
+      if (!acc[dateKey]) {
+        acc[dateKey] = { attendees: 0, checkedIn: 0 };
+      }
+      acc[dateKey].attendees += event.attendees_count || 0;
+      acc[dateKey].checkedIn += event.checked_in_count || 0;
+      return acc;
+    }, {} as Record<string, { attendees: number; checkedIn: number }>);
+    
+    const trendData = Object.entries(eventsByDate).map(([date, data]) => ({
+      x: parseISO(date),
+      y: data.attendees,
     }));
 
     // Data for EventsBarChart
     const recentEvents = sortedEvents.slice(-6);
     const barData = recentEvents.map(event => ({
+      id: event.id, // Add unique ID for React keys
       x: event.title.length > 10 ? `${event.title.substring(0, 10)}...` : event.title,
       y: event.attendees_count || 0,
       checkedIn: event.checked_in_count || 0,
       checkInRate: event.attendees_count ? ((event.checked_in_count || 0) / event.attendees_count * 100).toFixed(0) : '0'
     }));
 
-    // Data for CheckInChart - use ReportingService
-    const attendeeTypeDistribution = ReportingService.getAttendeeTypeDistribution();
+    // Data for CheckInChart - calculate from filteredEvents
+    const totalFilteredAttendees = filteredEvents.reduce((sum, e) => sum + (e.attendees_count || 0), 0);
+    const totalFilteredCheckedIn = filteredEvents.reduce((sum, e) => sum + (e.checked_in_count || 0), 0);
     const pieData = [
-      { x: "Checked In", y: attendeeTypeDistribution[0].count, color: theme.colors.primary },
-      { x: "Not Checked In", y: attendeeTypeDistribution[1].count, color: theme.colors.border || '#e0e0e0' }
+      { x: "Checked In", y: totalFilteredCheckedIn, color: theme.colors.primary },
+      { x: "Not Checked In", y: totalFilteredAttendees - totalFilteredCheckedIn, color: theme.colors.border || '#e0e0e0' }
     ];
     const pieStats = {
-      totalAttendees: attendeeTypeDistribution[0].count + attendeeTypeDistribution[1].count,
-      checkInRate: attendeeTypeDistribution[0].percentage.toFixed(1),
+      totalAttendees: totalFilteredAttendees,
+      checkInRate: totalFilteredAttendees > 0 ? ((totalFilteredCheckedIn / totalFilteredAttendees) * 100).toFixed(1) : '0',
     };
     
-    // Data for EventDistributionChart - use ReportingService
-    const eventDistribution = ReportingService.getEventDistribution();
-    const distributionData = eventDistribution.map((dist: { label: string; value: number }) => ({
-      x: dist.label,
-      y: dist.value,
+    // Data for EventDistributionChart - calculate from filteredEvents
+    const statusCounts = filteredEvents.reduce((acc, event) => {
+      const eventDate = parseISO(event.date);
+      const now = new Date();
+      let status = 'Upcoming';
+      if (eventDate < now) status = 'Past';
+      else if (format(eventDate, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd')) status = 'Today';
+      
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const distributionData = Object.entries(statusCounts).map(([label, value]) => ({
+      x: label,
+      y: value,
     }));
     
     // AttendeeTypeChart data - empty for now (feature not yet implemented)
@@ -185,19 +242,23 @@ export default function StatsScreen() {
     // CheckinActivityHeatMap data - empty for now (feature not yet implemented)
     const heatMapData: number[][] = [];
 
-    // Data for EventCompletionBars - use real data only
-    const topEvents = ReportingService.getTopEvents(4);
-    const eventCompletionData = topEvents.map((event: { eventTitle: string; checkedIn: number; totalAttendees: number }) => ({
-      name: event.eventTitle,
-      checkedIn: event.checkedIn,
-      total: event.totalAttendees,
+    // Data for EventCompletionBars - use filteredEvents only
+    const topEvents = [...filteredEvents]
+      .sort((a, b) => (b.attendees_count || 0) - (a.attendees_count || 0))
+      .slice(0, 4);
+    const eventCompletionData = topEvents.map((event) => ({
+      name: event.title,
+      checkedIn: event.checked_in_count || 0,
+      total: event.attendees_count || 0,
     }));
 
-    // Data for CheckinRateTrendChart - use ReportingService only
-    const checkInRateTrends = ReportingService.getCheckInRateTrends(days);
-    const checkinRateTrendData = checkInRateTrends.map((trend: { rate: number }, index: number) => ({
-      x: index * 10,
-      y: trend.rate,
+    // Data for CheckinRateTrendChart - calculate from filteredEvents
+    const sortedByDate = [...filteredEvents].sort((a, b) => 
+      parseISO(a.date).getTime() - parseISO(b.date).getTime()
+    );
+    const checkinRateTrendData = sortedByDate.map((event, index) => ({
+      x: index,
+      y: event.attendees_count ? ((event.checked_in_count || 0) / event.attendees_count * 100) : 0,
     }));
 
     return { barData, pieData, pieStats, distributionData, trendData, attendeeTypeData, heatMapData, checkinSpeed, eventCompletionData, checkinRateTrendData };
@@ -234,11 +295,12 @@ export default function StatsScreen() {
   }
 
   return (
-    <ScrollView 
-      style={{ flex: 1, backgroundColor: theme.colors.backgroundSecondary }} 
-      contentContainerStyle={[styles.container, { paddingHorizontal: theme.spacing.sm }]}
-      refreshControl={
-        <RefreshControl
+    <>
+      <ScrollView 
+        style={{ flex: 1, backgroundColor: theme.colors.backgroundSecondary }} 
+        contentContainerStyle={[styles.container, { paddingHorizontal: theme.spacing.sm }]}
+        refreshControl={
+          <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
           colors={[theme.colors.primary]}
@@ -257,16 +319,39 @@ export default function StatsScreen() {
         </TouchableOpacity>
       </View>
       
-      {/* Export PDF Button */}
-      <View style={{ marginBottom: theme.spacing.md }}>
-        <ExportPDFButton
-          type="statistics"
-          timeFilter={filters.timeFilter}
-          variant="primary"
-        />
+      {/* Export and Share Buttons */}
+      <View style={{ marginBottom: theme.spacing.md, flexDirection: 'row', gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <ExportPDFButton
+            type="statistics"
+            timeFilter={filters.timeFilter}
+            variant="primary"
+          />
+        </View>
+        <TouchableOpacity
+          style={[
+            styles.shareButton,
+            { backgroundColor: theme.colors.success }
+          ]}
+          onPress={() => ShareUtils.shareStats({
+            totalEvents: stats.totalEvents,
+            totalAttendees: stats.totalAttendees,
+            checkInRate: stats.checkInRate,
+            timeFilter: filters.timeFilter
+          })}
+        >
+          <ShareNetwork size={20} color="white" weight="bold" />
+          <Text style={styles.shareButtonText}>Share</Text>
+        </TouchableOpacity>
       </View>
       
-      <TimeFilterComponent timeFilter={filters.timeFilter} setTimeFilter={(tf) => setFilters({ ...filters, timeFilter: tf })} />
+      <TimeFilterComponent 
+        timeFilter={filters.timeFilter} 
+        setTimeFilter={(tf) => {
+          setFilters({ ...filters, timeFilter: tf });
+          setTimeFilter(tf); // Update Zustand
+        }} 
+      />
       <OverviewSection stats={stats} />
       <EventDistributionChart data={chartData.distributionData} />
       <SectionHeader title="Attendance Analytics" />
@@ -294,23 +379,24 @@ export default function StatsScreen() {
       <CheckinSpeedGauge value={chartData.checkinSpeed} label="Average Check-in Speed" unit="per minute" />
       <EventCompletionBars events={chartData.eventCompletionData} title="Event Completion Status" />
       <CheckinRateTrendChart data={chartData.checkinRateTrendData} title="Check-in Rate Over Time" />
-      
-      {/* Filter Sheet */}
-      <FilterSheet
-        visible={filterSheetVisible}
-        onClose={() => setFilterSheetVisible(false)}
-        onApply={(newFilters) => setFilters(newFilters)}
-        currentFilters={filters}
-        events={events}
-        showTimeFilter={true}
-        showEventFilter={true}
-        showCategoryFilter={false}
-        showStatusFilter={false}
-        showCheckInFilter={true}
-        showAttendeeRangeFilter={false}
-        showSortOptions={false}
-      />
     </ScrollView>
+    
+    {/* Filter Sheet - Moved outside ScrollView */}
+    <FilterSheet
+      visible={filterSheetVisible}
+      onClose={() => setFilterSheetVisible(false)}
+      onApply={handleApplyFilters}
+      currentFilters={filters}
+      events={events}
+      showTimeFilter={true}
+      showEventFilter={true}
+      showCategoryFilter={false}
+      showStatusFilter={false}
+      showCheckInFilter={true}
+      showAttendeeRangeFilter={false}
+      showSortOptions={false}
+    />
+  </>
   );
 }
 
@@ -336,6 +422,21 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  shareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    minWidth: 100,
+  },
+  shareButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
   },
   loadingContainer: {
     flex: 1,

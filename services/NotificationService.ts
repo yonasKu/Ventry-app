@@ -1,7 +1,9 @@
 import * as Notifications from 'expo-notifications';
+import notifee, { AndroidStyle, AndroidImportance, AndroidVisibility, AndroidCategory } from '@notifee/react-native';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Event } from './DatabaseService';
+import { showToast } from '../utils/toast';
 
 // Theme colors for notifications
 const NOTIFICATION_COLORS = {
@@ -94,13 +96,15 @@ class NotificationService {
       // Set up notification channels for Android (doesn't require permission)
       if (Platform.OS === 'android') {
         await this.setupAndroidChannels();
+        await this.setupNotifeeChannels();
       }
 
       // Set up notification response listener
       this.setupNotificationListener();
+      this.setupNotifeeListener();
 
       this.initialized = true;
-      console.log('NotificationService initialized');
+      console.log('NotificationService initialized with @notifee');
     } catch (error) {
       console.error('Failed to initialize NotificationService:', error);
     }
@@ -111,22 +115,30 @@ class NotificationService {
    */
   async requestPermissions(): Promise<boolean> {
     try {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
+      // Request @notifee permissions first (more comprehensive)
+      const notifeeSettings = await notifee.requestPermission();
+      
+      if (notifeeSettings.authorizationStatus >= 1) {
+        // Also request Expo permissions for scheduled notifications
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
 
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
+        if (existingStatus !== 'granted') {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
+
+        if (finalStatus === 'granted') {
+          showToast.success('Notifications enabled! You\'ll get event reminders and updates.');
+          return true;
+        }
       }
 
-      if (finalStatus !== 'granted') {
-        console.log('Notification permissions not granted');
-        return false;
-      }
-
-      return true;
+      showToast.warning('Notifications disabled. You won\'t receive event reminders.');
+      return false;
     } catch (error) {
       console.error('Error requesting notification permissions:', error);
+      showToast.error('Failed to setup notifications');
       return false;
     }
   }
@@ -182,6 +194,49 @@ class NotificationService {
   }
 
   /**
+   * Setup @notifee Android notification channels (Rich notifications)
+   */
+  private async setupNotifeeChannels(): Promise<void> {
+    if (Platform.OS !== 'android') return;
+
+    // Event Reminders Channel (Rich)
+    await notifee.createChannel({
+      id: 'event_reminders_rich',
+      name: 'Event Reminders',
+      description: 'Rich notifications about upcoming events',
+      importance: AndroidImportance.HIGH,
+      sound: 'default',
+      vibration: true,
+      lights: true,
+      lightColor: NOTIFICATION_COLORS.primary,
+    });
+
+    // Check-in Updates Channel (Rich)
+    await notifee.createChannel({
+      id: 'checkin_updates_rich',
+      name: 'Check-in Updates',
+      description: 'Real-time check-in notifications with actions',
+      importance: AndroidImportance.DEFAULT,
+      sound: 'default',
+      vibration: true,
+      lights: true,
+      lightColor: NOTIFICATION_COLORS.success,
+    });
+
+    // Milestones Channel (Rich)
+    await notifee.createChannel({
+      id: 'milestones_rich',
+      name: 'Event Milestones',
+      description: 'Celebration notifications for event achievements',
+      importance: AndroidImportance.HIGH,
+      sound: 'default',
+      vibration: true,
+      lights: true,
+      lightColor: NOTIFICATION_COLORS.accent,
+    });
+  }
+
+  /**
    * Setup notification response listener
    */
   private setupNotificationListener(): void {
@@ -191,6 +246,56 @@ class NotificationService {
       // Handle navigation based on notification type
       // This will be implemented when integrating with navigation
     });
+  }
+
+  /**
+   * Setup @notifee notification listener
+   */
+  private setupNotifeeListener(): void {
+    // Handle notification press
+    notifee.onForegroundEvent(({ type, detail }) => {
+      if (type === notifee.EventType.PRESS) {
+        console.log('Rich notification pressed:', detail.notification?.data);
+        // Handle navigation based on notification data
+      }
+      
+      if (type === notifee.EventType.ACTION_PRESS) {
+        console.log('Rich notification action pressed:', detail.pressAction?.id);
+        this.handleNotificationAction(detail.pressAction?.id, detail.notification?.data);
+      }
+    });
+
+    // Handle background events
+    notifee.onBackgroundEvent(async ({ type, detail }) => {
+      if (type === notifee.EventType.ACTION_PRESS) {
+        console.log('Background action pressed:', detail.pressAction?.id);
+        await this.handleNotificationAction(detail.pressAction?.id, detail.notification?.data);
+      }
+    });
+  }
+
+  /**
+   * Handle notification action presses
+   */
+  private async handleNotificationAction(actionId?: string, data?: any): Promise<void> {
+    if (!actionId) return;
+
+    switch (actionId) {
+      case 'view_event':
+        console.log('Navigate to event:', data?.eventId);
+        break;
+      case 'start_checkin':
+        console.log('Navigate to check-in:', data?.eventId);
+        break;
+      case 'view_stats':
+        console.log('Navigate to stats:', data?.eventId);
+        break;
+      case 'dismiss':
+        // Just dismiss the notification
+        break;
+      default:
+        console.log('Unknown action:', actionId);
+    }
   }
 
   /**
@@ -317,6 +422,64 @@ class NotificationService {
   }
 
   /**
+   * Send rich event reminder notification (1 hour before)
+   */
+  async sendRichEventReminder(event: Event): Promise<void> {
+    try {
+      const attendeeText = event.attendees_count 
+        ? `${event.attendees_count} attendees registered`
+        : 'Ready for attendees';
+
+      await notifee.displayNotification({
+        title: `🎉 ${event.title} starts in 1 hour!`,
+        body: `Get ready to welcome your attendees. ${attendeeText}.`,
+        data: {
+          eventId: event.id,
+          type: 'event_reminder_rich',
+          screen: 'event-detail',
+        },
+        android: {
+          channelId: 'event_reminders_rich',
+          importance: AndroidImportance.HIGH,
+          category: AndroidCategory.EVENT,
+          visibility: AndroidVisibility.PUBLIC,
+          smallIcon: 'ic_notification',
+          color: NOTIFICATION_COLORS.primary,
+          actions: [
+            {
+              title: '👀 View Event',
+              pressAction: {
+                id: 'view_event',
+                mainComponent: 'default',
+              },
+            },
+            {
+              title: '✅ Start Check-in',
+              pressAction: {
+                id: 'start_checkin',
+                mainComponent: 'default',
+              },
+            },
+          ],
+          style: {
+            type: AndroidStyle.BIGTEXT,
+            text: `📅 Time: ${event.time}\n📍 Location: ${event.location || 'TBA'}\n👥 Expected: ${event.attendees_count || 0} attendees\n\nTap "Start Check-in" to begin welcoming attendees!`,
+          },
+        },
+        ios: {
+          categoryId: 'event_reminders',
+          sound: 'default',
+        },
+      });
+
+      showToast.success(`Event reminder sent for ${event.title}`);
+    } catch (error) {
+      console.error('Error sending rich event reminder:', error);
+      showToast.error('Failed to send event reminder');
+    }
+  }
+
+  /**
    * Send first check-in notification
    */
   async sendFirstCheckInNotification(attendeeName: string, eventTitle: string, eventId: string): Promise<void> {
@@ -325,19 +488,74 @@ class NotificationService {
       return;
     }
 
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'First Attendee Checked In',
-        body: `${attendeeName} just checked in to ${eventTitle}`,
+    // Send rich notification with @notifee
+    await this.sendRichCheckInNotification(
+      'First Attendee Checked In! 🎉',
+      `${attendeeName} just checked in to ${eventTitle}`,
+      eventId,
+      'first_checkin'
+    );
+  }
+
+  /**
+   * Send rich check-in notification with actions
+   */
+  async sendRichCheckInNotification(
+    title: string,
+    body: string,
+    eventId: string,
+    type: string
+  ): Promise<void> {
+    try {
+      await notifee.displayNotification({
+        title,
+        body,
         data: {
-          type: NotificationType.FIRST_CHECKIN,
           eventId,
+          type,
           screen: 'event-stats',
         },
-        sound: 'default',
-      },
-      trigger: null, // Send immediately
-    });
+        android: {
+          channelId: 'checkin_updates_rich',
+          importance: AndroidImportance.DEFAULT,
+          category: AndroidCategory.EVENT,
+          visibility: AndroidVisibility.PUBLIC,
+          smallIcon: 'ic_notification',
+          color: NOTIFICATION_COLORS.success,
+          actions: [
+            {
+              title: '📊 View Stats',
+              pressAction: {
+                id: 'view_stats',
+                mainComponent: 'default',
+              },
+            },
+            {
+              title: '👥 Check-in More',
+              pressAction: {
+                id: 'start_checkin',
+                mainComponent: 'default',
+              },
+            },
+          ],
+          style: {
+            type: AndroidStyle.BIGTEXT,
+            text: body,
+          },
+        },
+        ios: {
+          categoryId: 'checkin_updates',
+          sound: 'default',
+        },
+      });
+    } catch (error) {
+      console.error('Error sending rich check-in notification:', error);
+      // Fallback to basic notification
+      await Notifications.scheduleNotificationAsync({
+        content: { title, body },
+        trigger: null,
+      });
+    }
   }
 
   /**
@@ -356,28 +574,95 @@ class NotificationService {
     }
 
     const titles = {
-      50: 'Halfway There - 50% Checked In',
-      100: 'Perfect Attendance',
+      50: 'Halfway There! 🎯',
+      100: 'Perfect Attendance! 🏆',
     };
 
     const bodies = {
       50: `${checkedIn} of ${total} attendees have checked in to ${eventTitle}`,
-      100: `All ${total} attendees have checked in to ${eventTitle}`,
+      100: `All ${total} attendees have checked in to ${eventTitle}! Amazing!`,
     };
 
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: titles[milestone],
-        body: bodies[milestone],
+    // Send rich milestone notification
+    await this.sendRichMilestoneNotification(
+      titles[milestone],
+      bodies[milestone],
+      eventId,
+      milestone,
+      checkedIn,
+      total
+    );
+  }
+
+  /**
+   * Send rich milestone notification with celebration
+   */
+  async sendRichMilestoneNotification(
+    title: string,
+    body: string,
+    eventId: string,
+    milestone: 50 | 100,
+    checkedIn: number,
+    total: number
+  ): Promise<void> {
+    try {
+      const percentage = Math.round((checkedIn / total) * 100);
+      const progressText = `Progress: ${checkedIn}/${total} attendees (${percentage}%)`;
+
+      await notifee.displayNotification({
+        title,
+        body,
         data: {
-          type: milestone === 50 ? NotificationType.MILESTONE_50 : NotificationType.MILESTONE_100,
           eventId,
+          type: `milestone_${milestone}`,
           screen: 'event-stats',
         },
-        sound: 'default',
-      },
-      trigger: null,
-    });
+        android: {
+          channelId: 'milestones_rich',
+          importance: AndroidImportance.HIGH,
+          category: AndroidCategory.EVENT,
+          visibility: AndroidVisibility.PUBLIC,
+          smallIcon: 'ic_notification',
+          color: milestone === 100 ? NOTIFICATION_COLORS.accent : NOTIFICATION_COLORS.success,
+          actions: [
+            {
+              title: '📊 View Full Stats',
+              pressAction: {
+                id: 'view_stats',
+                mainComponent: 'default',
+              },
+            },
+            {
+              title: '🎉 Share Achievement',
+              pressAction: {
+                id: 'share_milestone',
+                mainComponent: 'default',
+              },
+            },
+          ],
+          style: {
+            type: AndroidStyle.BIGTEXT,
+            text: `${body}\n\n${progressText}`,
+          },
+          progress: {
+            max: total,
+            current: checkedIn,
+            indeterminate: false,
+          },
+        },
+        ios: {
+          categoryId: 'milestones',
+          sound: 'default',
+        },
+      });
+    } catch (error) {
+      console.error('Error sending rich milestone notification:', error);
+      // Fallback to basic notification
+      await Notifications.scheduleNotificationAsync({
+        content: { title, body },
+        trigger: null,
+      });
+    }
   }
 
   /**

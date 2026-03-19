@@ -10,6 +10,7 @@ const { width } = Dimensions.get('window');
 
 interface EventsBarChartProps {
   data: Array<{
+    id: string; // Unique identifier for React keys
     x: string;
     y: number;
     checkedIn: number;
@@ -112,7 +113,7 @@ const EventsBarChart: React.FC<EventsBarChartProps> = ({ data, customTheme }) =>
 
         {data.map((item) => (
           <LinearGradient
-            key={item.x}
+            key={item.id}
             id={item.x.replace(/\s+/g, '')}
             colors={[theme.colors.primary, theme.colors.accent]}
             start={{ x: 0, y: 0 }}

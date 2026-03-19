@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, TextInput, FlatList, RefreshControl, ActivityIndicator, Alert, StatusBar } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, TextInput, FlatList, RefreshControl, ActivityIndicator, StatusBar } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CaretLeft, MagnifyingGlass, UserCirclePlus, QrCode, Users } from 'phosphor-react-native';
@@ -9,6 +9,7 @@ import * as _ from 'lodash';
 import SlideToCheckIn from '../../../components/SlideToCheckIn';
 import FAB from '../../../components/FAB';
 import { Attendee } from '../../../models/Attendee';
+import { showToast } from '../../../utils/toast';
 
 export default function CheckInScreen() {
   const theme = useTheme();
@@ -148,9 +149,14 @@ export default function CheckInScreen() {
             : a
         )
       );
+      
+      // Show success toast
+      showToast.success(
+        newCheckedInStatus ? 'Checked in successfully!' : 'Check-in removed'
+      );
     } catch (error) {
       console.error('Error toggling check-in status:', error);
-      Alert.alert('Error', 'Failed to update check-in status');
+      showToast.error('Failed to update check-in status');
       loadEventAndAttendees(false); // Re-fetch to correct optimistic update
     }
   };
