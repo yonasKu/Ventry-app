@@ -42,7 +42,7 @@ export default function CustomBottomNavigation() {
   const router = useRouter();
   const pathname = usePathname();
   const theme = useTheme();
-  
+
   // Use theme colors for active and inactive states
   const ACTIVE_TAB_COLOR = theme.colors.primary;
   const INACTIVE_TAB_COLOR = theme.colors.textTertiary;
@@ -55,15 +55,16 @@ export default function CustomBottomNavigation() {
       path: '/',
     },
     {
-      label: 'Backup',
-      icon: (color, size) => <CloudArrowDown size={size} color={color} weight={pathname.startsWith('/backup') ? 'fill' : 'regular'} />,
-      path: '/backup',
-    },
-    {
       label: 'Stats',
       icon: (color, size) => <ChartPie size={size} color={color} weight={pathname.startsWith('/stats') ? 'fill' : 'regular'} />,
       path: '/stats',
     },
+    {
+      label: 'Backup',
+      icon: (color, size) => <CloudArrowDown size={size} color={color} weight={pathname.startsWith('/backup') ? 'fill' : 'regular'} />,
+      path: '/backup',
+    },
+
     {
       label: 'Settings',
       icon: (color, size) => <Gear size={size} color={color} weight={pathname.startsWith('/settings') ? 'fill' : 'regular'} />,
@@ -72,7 +73,7 @@ export default function CustomBottomNavigation() {
   ];
 
   const tabWidth = width / tabs.length;
-  const activeIndex = React.useMemo(() => 
+  const activeIndex = React.useMemo(() =>
     tabs.findIndex(tab => tab.path === '/' ? pathname === '/' : pathname.startsWith(tab.path)),
     [pathname, tabs]
   );
@@ -89,8 +90,8 @@ export default function CustomBottomNavigation() {
         easing: Easing.bezier(0.33, 1, 0.68, 1), // Smoother easing
       });
     } else {
-        // Hide active icon if no tab is active (e.g. on a screen not in tabs)
-        activeIconX.value = withTiming(-ACTIVE_ICON_CONTAINER_SIZE - 50, { duration: 350 });
+      // Hide active icon if no tab is active (e.g. on a screen not in tabs)
+      activeIconX.value = withTiming(-ACTIVE_ICON_CONTAINER_SIZE - 50, { duration: 350 });
     }
   }, [activeIndex, tabWidth]);
 
@@ -120,14 +121,14 @@ export default function CustomBottomNavigation() {
           const tabLabelAnimatedStyle = useAnimatedStyle(() => {
             return {
               transform: [
-                { 
-                  translateY: isActive 
-                    ? withTiming(8, { duration: 200, easing: Easing.ease }) 
+                {
+                  translateY: isActive
+                    ? withTiming(8, { duration: 200, easing: Easing.ease })
                     : withTiming(0, { duration: 200, easing: Easing.ease })
                 }
               ],
-              opacity: isActive 
-                ? withTiming(1, { duration: 200 }) 
+              opacity: isActive
+                ? withTiming(1, { duration: 200 })
                 : withTiming(1, { duration: 200 }), // Keep labels always somewhat visible
               color: isActive ? ACTIVE_TAB_COLOR : INACTIVE_TAB_COLOR,
             };
@@ -135,9 +136,9 @@ export default function CustomBottomNavigation() {
 
           const tabIconAnimatedStyle = useAnimatedStyle(() => {
             return {
-              opacity: isActive 
+              opacity: isActive
                 ? withTiming(0, { duration: 150 }) // Hide inactive icon quickly
-                : withTiming(1, { duration: 200 }), 
+                : withTiming(1, { duration: 200 }),
             };
           });
 

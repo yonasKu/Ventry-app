@@ -28,7 +28,6 @@ export default function SettingsScreen() {
   const theme = useTheme();
   const [notifications, setNotifications] = useState(true);
   const [autoBackup, setAutoBackup] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -38,11 +37,9 @@ export default function SettingsScreen() {
     try {
       const notif = await AsyncStorage.getItem('notifications_enabled');
       const backup = await AsyncStorage.getItem('auto_backup_enabled');
-      const dark = await AsyncStorage.getItem('dark_mode_enabled');
       
       if (notif !== null) setNotifications(JSON.parse(notif));
       if (backup !== null) setAutoBackup(JSON.parse(backup));
-      if (dark !== null) setDarkMode(JSON.parse(dark));
     } catch (error) {
       console.error('Error loading settings:', error);
     }
@@ -97,13 +94,9 @@ export default function SettingsScreen() {
     );
   };
 
-  const handleDarkModeToggle = async (value: boolean) => {
-    setDarkMode(value);
-    await AsyncStorage.setItem('dark_mode_enabled', JSON.stringify(value));
-    Alert.alert(
-      'Theme',
-      'Theme changes will take effect after restarting the app'
-    );
+  const handleDarkModeToggle = () => {
+    // Use the theme context's toggleTheme function for immediate updates
+    theme.toggleTheme();
   };
 
   const handleClearCache = () => {
@@ -238,7 +231,7 @@ export default function SettingsScreen() {
         <View style={[styles.settingCard, { backgroundColor: theme.colors.backgroundPrimary }]}>
           <View style={styles.settingRow}>
             <View style={styles.settingLeft}>
-              {darkMode ? (
+              {theme.isDark ? (
                 <Moon size={24} color={theme.colors.primary} weight="fill" />
               ) : (
                 <Sun size={24} color={theme.colors.primary} weight="fill" />
@@ -253,7 +246,7 @@ export default function SettingsScreen() {
               </View>
             </View>
             <Switch
-              value={darkMode}
+              value={theme.isDark}
               onValueChange={handleDarkModeToggle}
               trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
               thumbColor="white"

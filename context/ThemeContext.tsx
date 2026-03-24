@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useColorScheme } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Theme colors based on our theme guide
 const COLORS = {
@@ -127,6 +128,7 @@ const SHADOWS = {
 // Theme interface
 export interface Theme {
   isDark: boolean;
+  toggleTheme: () => void; // Add toggle function
   colors: {
     // Primary brand colors
     primary: string;
@@ -165,17 +167,65 @@ const ThemeContext = createContext<Theme | undefined>(undefined);
 
 // Theme provider component
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const colorScheme = useColorScheme();
-  const [isDark, setIsDark] = useState(colorScheme === 'dark');
+  const systemColorScheme = useColorScheme();
+  const [isDark, setIsDark] = useState(systemColorScheme === 'dark');
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Update theme when system theme changes
+  // Load saved theme preference on mount
   useEffect(() => {
-    setIsDark(colorScheme === 'dark');
-  }, [colorScheme]);
+    loadThemePreference();
+  }, []);
+
+  // Update theme when system theme changes (only if no manual preference is set)
+  useEffect(() => {
+    if (!isLoading) {
+      checkSystemTheme();
+    }
+  }, [systemColorScheme, isLoading]);
+
+  const loadThemePreference = async () => {
+    try {
+      const savedTheme = await AsyncStorage.getItem('dark_mode_enabled');
+      if (savedTheme !== null) {
+        setIsDark(JSON.parse(savedTheme));
+      } else {
+        // No saved preference, use system theme
+        setIsDark(systemColorScheme === 'dark');
+      }
+    } catch (error) {
+      console.error('Error loading theme preference:', error);
+      setIsDark(systemColorScheme === 'dark');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const checkSystemTheme = async () => {
+    try {
+      const savedTheme = await AsyncStorage.getItem('dark_mode_enabled');
+      // Only follow system theme if no manual preference is set
+      if (savedTheme === null) {
+        setIsDark(systemColorScheme === 'dark');
+      }
+    } catch (error) {
+      console.error('Error checking system theme:', error);
+    }
+  };
+
+  const toggleTheme = async () => {
+    const newTheme = !isDark;
+    setIsDark(newTheme);
+    try {
+      await AsyncStorage.setItem('dark_mode_enabled', JSON.stringify(newTheme));
+    } catch (error) {
+      console.error('Error saving theme preference:', error);
+    }
+  };
 
   // Construct the theme object
   const theme: Theme = {
     isDark,
+    toggleTheme, // Add the toggle function to the theme object
     colors: {
       // Primary brand colors
       primary: COLORS.primaryTeal,

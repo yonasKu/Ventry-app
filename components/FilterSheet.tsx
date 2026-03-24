@@ -63,8 +63,8 @@ export default function FilterSheet({
   const bottomSheetRef = useRef<BottomSheet>(null);
   const [localFilters, setLocalFilters] = useState<FilterOptions>(currentFilters);
 
-  // Snap points for the bottom sheet
-  const snapPoints = useMemo(() => ['50%', '85%'], []);
+  // Snap points for the bottom sheet - much larger to ensure button is visible
+  const snapPoints = useMemo(() => ['75%', '95%'], []);
 
   // Handle sheet changes
   useEffect(() => {
@@ -121,8 +121,10 @@ export default function FilterSheet({
       backdropComponent={renderBackdrop}
       backgroundStyle={{ backgroundColor: theme.colors.backgroundPrimary }}
       handleIndicatorStyle={{ display: 'none' }}
+      keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
     >
-      {/* Header */}
+      {/* FIXED HEADER */}
       <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
         <TouchableOpacity onPress={handleReset}>
           <Text style={[styles.resetText, { color: theme.colors.primary }]}>
@@ -137,7 +139,13 @@ export default function FilterSheet({
         </TouchableOpacity>
       </View>
 
-      <BottomSheetScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      {/* SCROLLABLE CONTENT */}
+      <BottomSheetScrollView 
+        style={{ backgroundColor: theme.colors.backgroundPrimary }}
+        contentContainerStyle={{ paddingBottom: 24, flexGrow: 1 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.content}>
         {/* Filter by Event */}
         {showEventFilter && (
           <View style={styles.section}>
@@ -488,27 +496,30 @@ export default function FilterSheet({
           </View>
         )}
 
-        {/* Apply Button */}
-        <View style={[styles.footer, { borderTopColor: theme.colors.border }]}>
-          <TouchableOpacity
-            style={[styles.applyButton, { backgroundColor: theme.colors.primary }]}
-            onPress={handleApply}
-          >
-            <Text style={styles.applyButtonText}>Apply Filters</Text>
-          </TouchableOpacity>
         </View>
       </BottomSheetScrollView>
+
+      {/* FIXED FOOTER BUTTON - OUTSIDE SCROLL LIKE YOUR EXAMPLE */}
+      <View style={[styles.bottomButton, { backgroundColor: theme.colors.backgroundPrimary }]}>
+        <TouchableOpacity
+          style={[styles.applyButton, { backgroundColor: theme.colors.primary }]}
+          onPress={handleApply}
+        >
+          <Text style={styles.applyButtonText}>Apply Filters</Text>
+        </TouchableOpacity>
+      </View>
     </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: 'row',
     alignItems: 'center',
+    flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 20,
+    paddingBottom: 10,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
   },
   resetText: {
@@ -523,8 +534,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   content: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    padding: 16,
   },
   section: {
     marginBottom: 24,
@@ -549,9 +559,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-  footer: {
-    paddingVertical: 16,
-    marginTop: 8,
+  bottomButton: {
+    paddingHorizontal: 16,
+    paddingBottom: 40, // Increased bottom padding for safe area
+    paddingTop: 12,
   },
   applyButton: {
     paddingVertical: 16,
