@@ -8,12 +8,10 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
-  StatusBar,
 } from "react-native";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from "expo-router";
 import {
-  CaretLeft,
   PencilSimple,
   Trash,
   UserPlus,
@@ -33,6 +31,7 @@ import {
 import { useTheme } from "../../context/ThemeContext";
 import { useEvents } from "../../context/EventContext";
 import EventCountdown from "../../components/EventCountdown";
+import AppHeader from "../../components/AppHeader";
 import { CategoryDataDisplay } from "../../components/CategoryDataDisplay";
 import { ShareUtils } from "../../utils/shareUtils";
 
@@ -130,33 +129,7 @@ export default function EventDetailScreen() {
           { backgroundColor: theme.colors.backgroundSecondary },
         ]}
       >
-        <View
-          style={[
-            styles.header,
-            { backgroundColor: theme.colors.backgroundPrimary },
-          ]}
-        >
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <CaretLeft
-              size={24}
-              color={theme.colors.primary}
-              weight="regular"
-            />
-          </TouchableOpacity>
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "bold",
-              color: theme.colors.textPrimary,
-            }}
-          >
-            Event Details
-          </Text>
-          <View style={{ width: 40 }} />
-        </View>
+        <AppHeader title="Event Details" />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
@@ -172,33 +145,7 @@ export default function EventDetailScreen() {
           { backgroundColor: theme.colors.backgroundSecondary },
         ]}
       >
-        <View
-          style={[
-            styles.header,
-            { backgroundColor: theme.colors.backgroundPrimary },
-          ]}
-        >
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <CaretLeft
-              size={24}
-              color={theme.colors.primary}
-              weight="regular"
-            />
-          </TouchableOpacity>
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "bold",
-              color: theme.colors.textPrimary,
-            }}
-          >
-            Event Details
-          </Text>
-          <View style={{ width: 40 }} />
-        </View>
+        <AppHeader title="Event Details" />
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: theme.colors.error }]}>
             {error || "Event not found"}
@@ -226,24 +173,18 @@ export default function EventDetailScreen() {
         { backgroundColor: theme.colors.backgroundSecondary },
       ]}
     >
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor={theme.colors.primary}
+      <AppHeader 
+        title="Event Details"
+        rightComponent={
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => router.push(`/event/edit/${id}`)}
+            activeOpacity={0.7}
+          >
+            <PencilSimple size={16} color="white" weight="regular" />
+          </TouchableOpacity>
+        }
       />
-      <View style={[styles.header, { backgroundColor: theme.colors.primary, paddingTop: insets.top }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <CaretLeft size={24} color="white" weight="regular" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => router.push(`/event/edit/${id}`)}
-        >
-          <PencilSimple size={20} color="white" weight="regular" />
-        </TouchableOpacity>
-      </View>
 
       <ScrollView
         style={styles.scrollView}
@@ -479,7 +420,7 @@ export default function EventDetailScreen() {
                 ]}
               >
                 <CheckCircle
-                  size={24}
+                  size={22}
                   color={theme.colors.primary}
                   weight="fill"
                 />
@@ -508,7 +449,7 @@ export default function EventDetailScreen() {
                 ]}
               >
                 <UserPlus
-                  size={24}
+                  size={22}
                   color={theme.colors.primary}
                   weight="fill"
                 />
@@ -537,7 +478,7 @@ export default function EventDetailScreen() {
                 ]}
               >
                 <Scan
-                  size={24}
+                  size={22}
                   color={theme.colors.accent}
                   weight="fill"
                 />
@@ -568,7 +509,7 @@ export default function EventDetailScreen() {
                 ]}
               >
                 <ChartBar
-                  size={24}
+                  size={22}
                   color={theme.colors.accent}
                   weight="fill"
                 />
@@ -597,7 +538,7 @@ export default function EventDetailScreen() {
                 ]}
               >
                 <ShareNetwork
-                  size={24}
+                  size={22}
                   color={theme.colors.success}
                   weight="fill"
                 />
@@ -626,7 +567,7 @@ export default function EventDetailScreen() {
                   { backgroundColor: `${theme.colors.primary}15` },
                 ]}
               >
-                <QrCode size={24} color={theme.colors.primary} weight="fill" />
+                <QrCode size={22} color={theme.colors.primary} weight="fill" />
               </View>
               <Text
                 style={[
@@ -652,7 +593,7 @@ export default function EventDetailScreen() {
                 ]}
               >
                 <FileArrowDown
-                  size={24}
+                  size={22}
                   color={theme.colors.success}
                   weight="fill"
                 />
@@ -688,7 +629,7 @@ export default function EventDetailScreen() {
                 ]}
               >
                 <FileText
-                  size={24}
+                  size={22}
                   color={theme.colors.error}
                   weight="fill"
                 />
@@ -709,37 +650,6 @@ export default function EventDetailScreen() {
                 { backgroundColor: theme.colors.backgroundPrimary },
               ]}
               onPress={() => {
-                router.push(`/event/attendees/${id}?mode=qr`);
-              }}
-            >
-              <View
-                style={[
-                  styles.actionIconContainer,
-                  { backgroundColor: `${theme.colors.primary}15` },
-                ]}
-              >
-                <QrCode
-                  size={24}
-                  color={theme.colors.primary}
-                  weight="fill"
-                />
-              </View>
-              <Text
-                style={[
-                  styles.actionButtonLabel,
-                  { color: theme.colors.textPrimary },
-                ]}
-              >
-                Attendee QRs
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.actionButtonCard,
-                { backgroundColor: theme.colors.backgroundPrimary },
-              ]}
-              onPress={() => {
                 // Navigate to attendee list where they can select an attendee to view their QR code
                 router.push(`/event/attendees/${id}?mode=qr`);
               }}
@@ -751,7 +661,7 @@ export default function EventDetailScreen() {
                 ]}
               >
                 <QrCode
-                  size={24}
+                  size={22}
                   color={theme.colors.primary}
                   weight="fill"
                 />
@@ -794,7 +704,7 @@ export default function EventDetailScreen() {
                     { backgroundColor: `${theme.colors.error}15` },
                   ]}
                 >
-                  <Trash size={22} color={theme.colors.error} weight="bold" />
+                  <Trash size={20} color={theme.colors.error} weight="bold" />
                 </View>
                 <View style={styles.deleteActionTextContainer}>
                   <Text
@@ -820,28 +730,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.2)",
-  },
   editButton: {
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(255,255,255,0.15)",
   },
   loadingContainer: {
     flex: 1,

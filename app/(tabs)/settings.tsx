@@ -277,66 +277,6 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Test Rich Notifications */}
-        {notifications && (
-          <>
-            <TouchableOpacity
-              style={[styles.settingCard, { backgroundColor: theme.colors.backgroundPrimary }]}
-              onPress={async () => {
-                await NotificationService.sendRichEventReminder({
-                  id: 'test',
-                  title: 'Tech Conference 2026',
-                  time: '14:00',
-                  location: 'Convention Center',
-                  attendees_count: 150,
-                } as any);
-              }}
-            >
-              <View style={styles.settingRow}>
-                <View style={styles.settingLeft}>
-                  <Bell size={24} color={theme.colors.success} weight="regular" />
-                  <View style={styles.settingText}>
-                    <Text style={[styles.settingTitle, { color: theme.colors.textPrimary }]}>
-                      Test Event Reminder
-                    </Text>
-                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                      Try rich notification with actions
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.settingCard, { backgroundColor: theme.colors.backgroundPrimary }]}
-              onPress={async () => {
-                await NotificationService.sendRichMilestoneNotification(
-                  'Halfway There! 🎯',
-                  '75 of 150 attendees have checked in to Tech Conference 2026',
-                  'test',
-                  50,
-                  75,
-                  150
-                );
-              }}
-            >
-              <View style={styles.settingRow}>
-                <View style={styles.settingLeft}>
-                  <Bell size={24} color={theme.colors.accent} weight="regular" />
-                  <View style={styles.settingText}>
-                    <Text style={[styles.settingTitle, { color: theme.colors.textPrimary }]}>
-                      Test Milestone Alert
-                    </Text>
-                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                      Try milestone notification with progress
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </TouchableOpacity>
-          </>
-        )}
-
         {/* Auto Backup */}
         <View style={[styles.settingCard, { backgroundColor: theme.colors.backgroundPrimary }]}>
           <View style={styles.settingRow}>

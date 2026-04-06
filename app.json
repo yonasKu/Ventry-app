@@ -23,15 +23,6 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.anonymous.ventryapp",
-      "enableDangerousExperimentalLeanBuilds": false,
-      "ndk": {
-        "abiFilters": [
-          "armeabi-v7a",
-          "arm64-v8a",
-          "x86",
-          "x86_64"
-        ]
-      },
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"

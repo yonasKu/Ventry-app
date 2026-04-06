@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { StyleSheet, Text, View, Platform } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -7,12 +7,11 @@ import Animated, {
   withTiming,
   withSpring,
   withSequence,
-  withDelay,
   runOnJS,
   interpolateColor,
   useDerivedValue,
 } from 'react-native-reanimated';
-import { CheckCircle, XCircle, ArrowRight, ArrowLeft } from 'phosphor-react-native';
+import { CheckCircle, ArrowRight, ArrowLeft } from 'phosphor-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { Attendee } from '../models/Attendee';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
@@ -29,9 +28,10 @@ interface SlideToCheckInProps {
   attendee: Attendee;
   onCheckIn: (attendeeId: string) => void;
   onUncheckIn: (attendeeId: string) => void;
+  onTap?: (attendeeId: string) => void; // New prop for tap navigation
 }
 
-export default function SlideToCheckIn({ attendee, onCheckIn, onUncheckIn }: SlideToCheckInProps) {
+export default function SlideToCheckIn({ attendee, onCheckIn, onUncheckIn, onTap }: SlideToCheckInProps) {
   const theme = useTheme();
   const translateX = useSharedValue(0);
   const itemHeight = useSharedValue(70);
@@ -155,13 +155,12 @@ export default function SlideToCheckIn({ attendee, onCheckIn, onUncheckIn }: Sli
       direction.value = withTiming(0);
     });
 
-  // Add tap gesture for quick check-in/uncheck
+  // Add tap gesture for navigation to details
   const tapGesture = Gesture.Tap()
     .onEnd(() => {
-      if (attendee.checked_in) {
-        handleUncheckIn();
-      } else {
-        handleSuccessfulCheckIn();
+      // Navigate to attendee details instead of immediate check-in
+      if (onTap) {
+        runOnJS(onTap)(attendee.id);
       }
     });
 
@@ -210,9 +209,9 @@ export default function SlideToCheckIn({ attendee, onCheckIn, onUncheckIn }: Sli
           style={[styles.attendeeCard, animatedStyle, { backgroundColor: theme.colors.backgroundPrimary }]}
           accessible={true}
           accessibilityLabel={attendee.checked_in 
-            ? `${attendee.name} is checked in. Swipe left to uncheck or tap to toggle.` 
-            : `${attendee.name} is not checked in. Swipe right to check in or tap to toggle.`}
-          accessibilityHint="Swipe right to check in, left to uncheck, or tap to toggle"
+            ? `${attendee.name} is checked in. Tap for details, swipe left to uncheck.` 
+            : `${attendee.name} is not checked in. Tap for details, swipe right to check in.`}
+          accessibilityHint="Tap to view details, swipe right to check in, left to uncheck"
         >
           {/* Progress indicator at bottom of card */}
           <Animated.View style={[styles.progressIndicator, progressIndicatorStyle]} />
@@ -222,7 +221,7 @@ export default function SlideToCheckIn({ attendee, onCheckIn, onUncheckIn }: Sli
             <View style={[styles.swipeHint, { backgroundColor: theme.colors.primary + '15' }]}>
               <ArrowRight size={16} color={theme.colors.primary} weight="bold" />
               <Text style={[styles.swipeHintText, { color: theme.colors.primary }]}>
-                Swipe or tap to check in
+                Tap for details, swipe to check in
               </Text>
             </View>
           )}

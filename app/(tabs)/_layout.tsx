@@ -1,12 +1,16 @@
 import React from 'react';
 import { Slot } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import CustomBottomNavigation from '../../components/CustomBottomNavigation';
 
 export default function TabLayout() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
+
+  // Calculate bottom padding: nav bar height + active icon float + safe area
+  const bottomPadding = 65 + 20 + insets.bottom;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.backgroundPrimary }} edges={['top']}>
@@ -24,12 +28,12 @@ export default function TabLayout() {
         <Text style={styles.offlineIndicator}>[OFFLINE]</Text>
       </View> */}
       
-      {/* Main content with bottom padding for navigation */}
-      <View style={styles.contentContainer}>
+      {/* Main content with dynamic bottom padding for navigation */}
+      <View style={[styles.contentContainer, { paddingBottom: bottomPadding }]}>
         <Slot />
       </View>
       
-      {/* Custom bottom navigation */}
+      {/* Custom bottom navigation with safe area */}
       <CustomBottomNavigation />
     </SafeAreaView>
   );
@@ -38,7 +42,7 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
-    paddingBottom: 80, // Increased padding to prevent content from being hidden behind the navigation bar
+    // paddingBottom is now dynamic and set inline
   },
   header: {
     flexDirection: 'row',

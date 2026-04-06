@@ -8,6 +8,7 @@ import {
   Platform,
 } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   House,
   CalendarBlank,
@@ -42,6 +43,7 @@ export default function CustomBottomNavigation() {
   const router = useRouter();
   const pathname = usePathname();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   // Use theme colors for active and inactive states
   const ACTIVE_TAB_COLOR = theme.colors.primary;
@@ -102,7 +104,14 @@ export default function CustomBottomNavigation() {
   });
 
   return (
-    <View style={[styles.outerContainer, { backgroundColor: NAV_BACKGROUND_COLOR }]}>
+    <View style={[
+      styles.outerContainer, 
+      { 
+        backgroundColor: NAV_BACKGROUND_COLOR,
+        paddingBottom: insets.bottom, // Use actual safe area inset
+        height: NAV_BAR_HEIGHT + ACTIVE_ICON_FLOAT_AMOUNT + insets.bottom, // Add safe area to height
+      }
+    ]}>
       <Animated.View
         style={[
           styles.activeIconContainer,
@@ -169,8 +178,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: NAV_BAR_HEIGHT + ACTIVE_ICON_FLOAT_AMOUNT, // Enough space for bar and icon float
-    paddingBottom: Platform.OS === 'ios' ? 20 : 0, // SafeArea for iOS bottom notch
+    // Height is now dynamic based on safe area
   },
   navBar: {
     flexDirection: 'row',
@@ -186,7 +194,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 10,
     position: 'absolute',
-    bottom: 0,
+    bottom: 0, // Will be above the safe area padding
     left: 0,
     right: 0,
     paddingHorizontal: 5, // Small padding for tab items

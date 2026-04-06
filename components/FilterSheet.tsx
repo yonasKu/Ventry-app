@@ -63,8 +63,8 @@ export default function FilterSheet({
   const bottomSheetRef = useRef<BottomSheet>(null);
   const [localFilters, setLocalFilters] = useState<FilterOptions>(currentFilters);
 
-  // Snap points for the bottom sheet - much larger to ensure button is visible
-  const snapPoints = useMemo(() => ['75%', '95%'], []);
+  // Snap points for the bottom sheet - ensure button is always visible
+  const snapPoints = useMemo(() => ['70%', '90%'], []);
 
   // Handle sheet changes
   useEffect(() => {
@@ -123,28 +123,30 @@ export default function FilterSheet({
       handleIndicatorStyle={{ display: 'none' }}
       keyboardBehavior="interactive"
       keyboardBlurBehavior="restore"
+      style={{ zIndex: 1000 }}
     >
-      {/* FIXED HEADER */}
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={handleReset}>
-          <Text style={[styles.resetText, { color: theme.colors.primary }]}>
-            Reset
+      <View style={{ flex: 1, backgroundColor: theme.colors.backgroundPrimary }}>
+        {/* FIXED HEADER */}
+        <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+          <TouchableOpacity onPress={handleReset}>
+            <Text style={[styles.resetText, { color: theme.colors.primary }]}>
+              Reset
+            </Text>
+          </TouchableOpacity>
+          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+            Filters
           </Text>
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-          Filters
-        </Text>
-        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-          <X size={24} color={theme.colors.textPrimary} weight="bold" />
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <X size={24} color={theme.colors.textPrimary} weight="bold" />
+          </TouchableOpacity>
+        </View>
 
-      {/* SCROLLABLE CONTENT */}
-      <BottomSheetScrollView 
-        style={{ backgroundColor: theme.colors.backgroundPrimary }}
-        contentContainerStyle={{ paddingBottom: 24, flexGrow: 1 }}
-        showsVerticalScrollIndicator={false}
-      >
+        {/* SCROLLABLE CONTENT */}
+        <BottomSheetScrollView 
+          style={{ backgroundColor: theme.colors.backgroundPrimary, flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 24 }}
+          showsVerticalScrollIndicator={false}
+        >
         <View style={styles.content}>
         {/* Filter by Event */}
         {showEventFilter && (
@@ -499,14 +501,15 @@ export default function FilterSheet({
         </View>
       </BottomSheetScrollView>
 
-      {/* FIXED FOOTER BUTTON - OUTSIDE SCROLL LIKE YOUR EXAMPLE */}
-      <View style={[styles.bottomButton, { backgroundColor: theme.colors.backgroundPrimary }]}>
-        <TouchableOpacity
-          style={[styles.applyButton, { backgroundColor: theme.colors.primary }]}
-          onPress={handleApply}
-        >
-          <Text style={styles.applyButtonText}>Apply Filters</Text>
-        </TouchableOpacity>
+        {/* FIXED FOOTER BUTTON - OUTSIDE SCROLL LIKE YOUR EXAMPLE */}
+        <View style={[styles.bottomButton, { backgroundColor: theme.colors.backgroundPrimary }]}>
+          <TouchableOpacity
+            style={[styles.applyButton, { backgroundColor: theme.colors.primary }]}
+            onPress={handleApply}
+          >
+            <Text style={styles.applyButtonText}>Apply Filters</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </BottomSheet>
   );
@@ -561,13 +564,21 @@ const styles = StyleSheet.create({
   },
   bottomButton: {
     paddingHorizontal: 16,
-    paddingBottom: 40, // Increased bottom padding for safe area
-    paddingTop: 12,
+    paddingBottom: 50, // Increased for safe area
+    paddingTop: 16,
+    backgroundColor: 'transparent', // Ensure background shows through
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.1)',
   },
   applyButton: {
-    paddingVertical: 16,
+    paddingVertical: 18,
     borderRadius: 12,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
   applyButtonText: {
     color: 'white',

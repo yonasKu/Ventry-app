@@ -6,13 +6,14 @@ import { nanoid } from 'nanoid/non-secure';
 import CryptoJS from 'crypto-js';
 import { dbService, Event, Attendee } from './DatabaseService';
 import CsvService from './CsvService';
+import PDFService from './PDFService';
 
 // Export format options
 export enum ExportFormat {
   CSV = 'csv',
   JSON = 'json',
-  // EXCEL = 'xlsx',  // Not implemented yet
-  // PDF = 'pdf'      // Not implemented yet
+  EXCEL = 'xlsx',
+  PDF = 'pdf'
 }
 
 // Export destination options
@@ -48,10 +49,12 @@ export interface ExportTaskStatus {
 export class ExportService {
   private dbService = dbService;
   private csvService: typeof CsvService;
+  private pdfService: typeof PDFService;
   private activeTasks: Map<string, ExportTaskStatus>;
   
   constructor() {
     this.csvService = CsvService;
+    this.pdfService = PDFService;
     this.activeTasks = new Map();
   }
   
@@ -154,6 +157,27 @@ export class ExportService {
             filePath = await this.csvService.exportAttendeesToCsv(attendees, event, false);
           }
           break;
+
+        case ExportFormat.PDF:
+          filePath = await this.pdfService.generateAttendeeListReport(eventId, {
+            includeAttendeeDetails: true,
+            includeCustomFields: false,
+            title: `${event.title} - Attendee List`,
+            subtitle: `Generated on ${new Date().toLocaleDateString()}`
+          });
+          break;
+
+        case ExportFormat.EXCEL:
+          // For now, use CSV format for Excel (can be opened in Excel)
+          filePath = await this.csvService.exportAttendeesToCsv(attendees, event, options.includeCheckInStatus);
+          // Rename file to .xlsx extension
+          const excelFile = new File(filePath.replace('.csv', '.xlsx'));
+          const csvFile = new File(filePath);
+          const csvContent = await csvFile.text();
+          await excelFile.write(csvContent);
+          await csvFile.delete();
+          filePath = excelFile.uri;
+          break;
           
         default:
           filePath = await this.csvService.exportAttendeesToCsv(attendees, event, options.includeCheckInStatus);
@@ -194,6 +218,27 @@ export class ExportService {
           
         case ExportFormat.CSV:
           filePath = await this.csvService.exportEventToCsv(event);
+          break;
+
+        case ExportFormat.PDF:
+          filePath = await this.pdfService.generateEventReport(eventId, {
+            includeAttendeeDetails: true,
+            includeCustomFields: false,
+            title: `${event.title} - Event Report`,
+            subtitle: `Generated on ${new Date().toLocaleDateString()}`
+          });
+          break;
+
+        case ExportFormat.EXCEL:
+          // For now, use CSV format for Excel (can be opened in Excel)
+          filePath = await this.csvService.exportEventToCsv(event);
+          // Rename file to .xlsx extension
+          const excelFile = new File(filePath.replace('.csv', '.xlsx'));
+          const csvFile = new File(filePath);
+          const csvContent = await csvFile.text();
+          await excelFile.write(csvContent);
+          await csvFile.delete();
+          filePath = excelFile.uri;
           break;
           
         default:

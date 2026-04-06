@@ -4,44 +4,53 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Theme colors based on our theme guide
 const COLORS = {
-  // Primary brand colors
-  primaryTeal: '#0D9488',
-  accentAmber: '#F59E0B',
-  
-  // Supporting brand colors
+  // Primary brand colors - Teal Green
+  primaryGreen: '#16A085', // Beautiful teal green
+  darkGreen: '#0D9488', // Darker teal
+  accentGreen: '#10B981', // Bright emerald
+
+  // RAL 6008 Brown Green
+  ralBrownGreen: '#39352A',
+  ralBrownGreenLight: '#4A453A',
+  ralBrownGreenDark: '#2A251C',
+
+  // Supporting colors
   successGreen: '#10B981',
   errorRed: '#EF4444',
-  
+  warningAmber: '#F59E0B',
+
   // Neutral colors
   neutralDark: '#1F2937',
   neutralMedium: '#6B7280',
   neutralLight: '#E5E7EB',
   neutralExtraLight: '#F9FAFB',
   neutralWhite: '#FFFFFF',
-  neutralBlack: '#111827',
-  
+  neutralBlack: '#0F1419',
+
   // Light theme specific
   light: {
     backgroundPrimary: '#FFFFFF',
-    backgroundSecondary: '#F9FAFB',
+    backgroundSecondary: '#F3F4F6',
     surface: '#FFFFFF',
-    textPrimary: '#1F2937',
+    textPrimary: '#111827',
     textSecondary: '#6B7280',
     textTertiary: '#9CA3AF',
     border: '#E5E7EB',
     divider: '#E5E7EB',
   },
-  
-  // Dark theme specific
+
+  // Dark theme specific - GREEN BACKGROUNDS
   dark: {
-    backgroundPrimary: '#111827',
-    backgroundSecondary: '#1F2937',
-    surface: '#1F2937',
-    textPrimary: '#F9FAFB',
-    textSecondary: '#9CA3AF',
-    textTertiary: '#6B7280',
-    border: '#374151',
-    divider: '#374151',
+    backgroundPrimary: '#0F1419', // Very dark, almost black
+    backgroundSecondary: '#1A2332',
+    surface: '#1E2D3D', // Slightly lighter surface
+    cardBackground: '#2F5F5F', // Elevated card green
+    //cardBackground: '#243447', // Card background,
+    textPrimary: '#FFFFFF', // Pure white text
+    textSecondary: '#8B949E', // Muted grey
+    textTertiary: '#6E7681', // Darker grey
+    border: '#30363D', // Subtle border
+    divider: '#21262D', // Subtle divider
   }
 };
 
@@ -133,25 +142,30 @@ export interface Theme {
     // Primary brand colors
     primary: string;
     accent: string;
-    
+
+    // RAL 6008 Brown Green variants
+    ralBrownGreen: string;
+    ralBrownGreenLight: string;
+    ralBrownGreenDark: string;
+
     // Supporting colors
     success: string;
     error: string;
-    
+
     // Background colors
     backgroundPrimary: string;
     backgroundSecondary: string;
     surface: string;
-    
+
     // Text colors
     textPrimary: string;
     textSecondary: string;
     textTertiary: string;
-    
+
     // UI element colors
     border: string;
     divider: string;
-    
+
     // Additional colors
     neutralBlack: string;
     neutralWhite: string;
@@ -225,16 +239,21 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Construct the theme object
   const theme: Theme = {
     isDark,
-    toggleTheme, // Add the toggle function to the theme object
+    toggleTheme,
     colors: {
-      // Primary brand colors
-      primary: COLORS.primaryTeal,
-      accent: COLORS.accentAmber,
-      
+      // Primary brand colors - use green for dark mode
+      primary: isDark ? COLORS.primaryGreen : COLORS.primaryGreen,
+      accent: isDark ? COLORS.accentGreen : COLORS.warningAmber,
+
+      // RAL 6008 Brown Green variants
+      ralBrownGreen: COLORS.ralBrownGreen,
+      ralBrownGreenLight: COLORS.ralBrownGreenLight,
+      ralBrownGreenDark: COLORS.ralBrownGreenDark,
+
       // Supporting colors
       success: COLORS.successGreen,
       error: COLORS.errorRed,
-      
+
       // Theme-specific colors
       backgroundPrimary: isDark ? COLORS.dark.backgroundPrimary : COLORS.light.backgroundPrimary,
       backgroundSecondary: isDark ? COLORS.dark.backgroundSecondary : COLORS.light.backgroundSecondary,

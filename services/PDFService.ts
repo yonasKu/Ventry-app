@@ -71,8 +71,51 @@ export class PDFService {
   }
 
   /**
-   * Generate event report PDF
+   * Generate attendee list PDF with event information
    */
+  async generateAttendeeListReport(
+    eventId: string,
+    options: PDFOptions = {}
+  ): Promise<string> {
+    try {
+      // Get event data
+      const event = this.dbService.getEventById(eventId);
+      if (!event) {
+        throw new Error('Event not found');
+      }
+
+      // Get attendees
+      const attendees = this.dbService.getAttendees(eventId);
+      
+      // Get statistics
+      const stats = this.reportingService.getEventCheckInStats(eventId);
+      if (!stats) {
+        throw new Error('Failed to get event statistics');
+      }
+
+      // Generate HTML specifically for attendee list
+      const html = this.generateAttendeeListHTML(event, attendees, stats, options);
+      
+      // Generate PDF
+      const { uri } = await Print.printToFileAsync({ html });
+      
+      // Create a better filename
+      const sanitizedEventName = event.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const timestamp = format(new Date(), 'yyyyMMdd_HHmmss');
+      const filename = `${sanitizedEventName}_attendee_list_${timestamp}.pdf`;
+      const newFile = new File(Paths.document, filename);
+      
+      // Move file to new location with better name
+      const tempFile = new File(uri);
+      await tempFile.copy(newFile);
+      await tempFile.delete();
+      
+      return newFile.uri;
+    } catch (error: any) {
+      console.error('Error generating attendee list PDF:', error);
+      throw new Error(`Failed to generate attendee list PDF: ${error.message}`);
+    }
+  }
   async generateEventReport(
     eventId: string,
     options: PDFOptions = {}
@@ -134,6 +177,28 @@ export class PDFService {
     } catch (error: any) {
       console.error('Error sharing PDF:', error);
       throw new Error(`Failed to share PDF: ${error.message}`);
+    }
+  }
+
+  /**
+   * Save PDF file to device downloads/documents folder
+   */
+  async savePDFToDevice(filePath: string): Promise<string> {
+    try {
+      // Get the filename from the path
+      const fileName = filePath.split('/').pop() || 'report.pdf';
+      
+      // Create a new file in the documents directory with a user-friendly name
+      const savedFile = new File(Paths.document, fileName);
+      const originalFile = new File(filePath);
+      
+      // Copy the file to the documents directory
+      await originalFile.copy(savedFile);
+      
+      return savedFile.uri;
+    } catch (error: any) {
+      console.error('Error saving PDF to device:', error);
+      throw new Error(`Failed to save PDF: ${error.message}`);
     }
   }
 
@@ -271,6 +336,121 @@ export class PDFService {
                   <td>${trend.attendees}</td>
                   <td>${trend.checkedIn}</td>
                   <td>${trend.checkInRate.toFixed(1)}%</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        ` : ''}
+
+        ${footer}
+      </body>
+      </html>
+    `;
+  }
+
+  /**
+   * Generate HTML for attendee list report
+   */
+  private generateAttendeeListHTML(
+    event: Event,
+    attendees: Attendee[],
+    stats: CheckInStats,
+    options: PDFOptions
+  ): string {
+    const styles = this.getStyles();
+    const header = this.generateHeader(
+      `${event.title} - Attendee List`,
+      `${format(new Date(event.date), 'MMMM dd, yyyy')} at ${event.time}`
+    );
+    const footer = this.generateFooter();
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${this.escapeHTML(event.title)} - Attendee List</title>
+        <style>${styles}</style>
+      </head>
+      <body>
+        ${header}
+        
+        <!-- Event Details -->
+        <div class="section">
+          <h2>Event Information</h2>
+          <div class="info-grid">
+            <div class="info-item">
+              <strong>Date:</strong> ${format(new Date(event.date), 'MMMM dd, yyyy')}
+            </div>
+            <div class="info-item">
+              <strong>Time:</strong> ${event.time}
+            </div>
+            ${event.location ? `
+            <div class="info-item">
+              <strong>Location:</strong> ${this.escapeHTML(event.location)}
+            </div>
+            ` : ''}
+            ${event.notes ? `
+            <div class="info-item" style="grid-column: 1 / -1;">
+              <strong>Notes:</strong> ${this.escapeHTML(event.notes)}
+            </div>
+            ` : ''}
+          </div>
+        </div>
+
+        <!-- Quick Statistics -->
+        <div class="section">
+          <h2>Attendance Summary</h2>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <h3>${stats.totalAttendees}</h3>
+              <p>Total Attendees</p>
+            </div>
+            <div class="stat-card">
+              <h3>${stats.checkedIn}</h3>
+              <p>Checked In</p>
+            </div>
+            <div class="stat-card">
+              <h3>${stats.notCheckedIn}</h3>
+              <p>Not Checked In</p>
+            </div>
+            <div class="stat-card">
+              <h3>${stats.checkInRate.toFixed(1)}%</h3>
+              <p>Check-in Rate</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Complete Attendee List -->
+        ${attendees.length > 0 ? `
+        <div class="section">
+          <h2>Complete Attendee List</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Status</th>
+                <th>Check-in Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${attendees.map((attendee, index) => `
+                <tr>
+                  <td>${index + 1}</td>
+                  <td>${this.escapeHTML(attendee.name)}</td>
+                  <td>${attendee.email ? this.escapeHTML(attendee.email) : '-'}</td>
+                  <td>${attendee.phone ? this.escapeHTML(attendee.phone) : '-'}</td>
+                  <td>
+                    <span class="status-badge ${attendee.checked_in ? 'status-checked-in' : 'status-not-checked-in'}">
+                      ${attendee.checked_in ? 'Checked In' : 'Not Checked In'}
+                    </span>
+                  </td>
+                  <td>${attendee.check_in_time ? format(new Date(attendee.check_in_time), 'MMM dd, HH:mm') : '-'}</td>
                 </tr>
               `).join('')}
             </tbody>

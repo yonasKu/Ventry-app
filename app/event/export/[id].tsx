@@ -11,20 +11,21 @@ import {
   TextInput,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { CaretLeft, FileArrowDown, Users, CalendarCheck, Lock, FileJs, FileCode, FilePdf } from 'phosphor-react-native';
+import { FileArrowDown, Users, CalendarCheck, Lock, FileJs, FileCode, FilePdf } from 'phosphor-react-native';
 import { Paths, File } from 'expo-file-system';
 import { useTheme } from '../../../context/ThemeContext';
-import { DatabaseService, Event } from '../../../services/DatabaseService';
-import CsvService from '../../../services/CsvService';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useEvents } from '../../../context/EventContext';
+import ExportService, { ExportFormat } from '../../../services/ExportService';
+import PDFService from '../../../services/PDFService';
+import AppHeader from '../../../components/AppHeader';
 
 export default function ExportScreen() {
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
   const { id: eventId } = useLocalSearchParams<{ id: string }>();
-  const db = new DatabaseService();
+  const { getEventById } = useEvents();
+  const exportService = ExportService;
 
-  const [event, setEvent] = useState<Event | null>(null);
+  const [event, setEvent] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [selectedFormatIndex, setSelectedFormatIndex] = useState(0);
@@ -37,7 +38,7 @@ export default function ExportScreen() {
     loadEvent();
   }, [eventId]);
 
-  const loadEvent = () => {
+  const loadEvent = async () => {
     if (!eventId) {
       Alert.alert('Error', 'Event ID is missing.');
       setIsLoading(false);
@@ -45,7 +46,7 @@ export default function ExportScreen() {
       return;
     }
     try {
-      const eventData = db.getEventById(eventId);
+      const eventData = await getEventById(eventId);
       if (eventData) {
         setEvent(eventData);
       } else {
@@ -61,15 +62,14 @@ export default function ExportScreen() {
     }
   };
 
-  const handleExportAttendees = async (includeCheckInStatus: boolean = true) => {
+  const handleExportAttendees = async (includeCheckInStatus: boolean = true, action: 'download' | 'share' = 'share') => {
     if (!event) return;
     
     try {
       setIsExporting(true);
       
-      const attendees = db.getAttendees(eventId);
-      
-      if (attendees.length === 0) {
+      // Check if event has attendees
+      if (!event.attendees || event.attendees.length === 0) {
         Alert.alert('No Attendees', 'There are no attendees to export for this event.');
         setIsExporting(false);
         return;
@@ -77,63 +77,49 @@ export default function ExportScreen() {
       
       // Get selected format
       const selectedFormat = exportFormats[selectedFormatIndex];
-      let filePath = '';
+      let exportFormat: ExportFormat;
       
-      // Export based on selected format
+      // Map UI format to ExportFormat enum
       switch (selectedFormat) {
         case 'CSV':
-          filePath = await CsvService.exportAttendeesToCsv(attendees, event, includeCheckInStatus);
+          exportFormat = ExportFormat.CSV;
           break;
-          
         case 'JSON':
-          // Convert to JSON
-          const jsonData = JSON.stringify(attendees.map(attendee => {
-            const attendeeData: Record<string, any> = {
-              name: attendee.name,
-              email: attendee.email || '',
-              phone: attendee.phone || ''
-            };
-            
-            if (includeCheckInStatus) {
-              attendeeData.checked_in = attendee.checked_in;
-              attendeeData.check_in_time = attendee.check_in_time || '';
-            }
-            
-            return attendeeData;
-          }), null, 2);
-          
-          // Create filename
-          const sanitizedEventName = event.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          const filename = `${sanitizedEventName}_attendees_${timestamp}.json`;
-          
-          // Save to file
-          const file = new File(Paths.document, filename);
-          await file.write(jsonData);
-          filePath = file.uri;
+          exportFormat = ExportFormat.JSON;
           break;
-          
         case 'Excel':
-        case 'PDF':
-          // For now, we'll use CSV as a fallback and inform the user
-          Alert.alert('Feature Coming Soon', `${selectedFormat} export will be available in the next update. Using CSV format for now.`);
-          filePath = await CsvService.exportAttendeesToCsv(attendees, event, includeCheckInStatus);
+          exportFormat = ExportFormat.EXCEL;
           break;
-          
+        case 'PDF':
+          exportFormat = ExportFormat.PDF;
+          break;
         default:
-          filePath = await CsvService.exportAttendeesToCsv(attendees, event, includeCheckInStatus);
+          exportFormat = ExportFormat.CSV;
       }
       
-      // If password protection is enabled, add a simple header (in a real app, use proper encryption)
-      if (isPasswordProtected && password.trim()) {
-        const file = new File(filePath);
-        const fileContent = await file.text();
-        const protectedContent = `PROTECTED:${password}\n${fileContent}`;
-        await file.write(protectedContent);
-      }
+      // Export using ExportService
+      const filePath = await exportService.exportAttendees(eventId, {
+        format: exportFormat,
+        includeCheckInStatus,
+        password: isPasswordProtected && password.trim() ? password : undefined
+      });
       
-      // Share the file
-      await CsvService.shareCsvFile(filePath, `Export ${attendees.length} Attendees`);
+      // Handle PDF differently - show download or share option
+      if (exportFormat === ExportFormat.PDF) {
+        if (action === 'download') {
+          const savedPath = await PDFService.savePDFToDevice(filePath);
+          Alert.alert(
+            'PDF Saved', 
+            `Attendee list PDF has been saved to your device.\n\nFile: ${savedPath.split('/').pop()}`,
+            [{ text: 'OK' }]
+          );
+        } else {
+          await PDFService.sharePDF(filePath);
+        }
+      } else {
+        // For other formats, use the regular share
+        await exportService.shareFile(filePath, `Export ${event.attendees.length} Attendees`);
+      }
       
     } catch (error: any) {
       console.error('Error exporting attendees:', error);
@@ -143,7 +129,7 @@ export default function ExportScreen() {
     }
   };
 
-  const handleExportEvent = async () => {
+  const handleExportEvent = async (action: 'download' | 'share' = 'share') => {
     if (!event) return;
     
     try {
@@ -151,62 +137,48 @@ export default function ExportScreen() {
       
       // Get selected format
       const selectedFormat = exportFormats[selectedFormatIndex];
-      let filePath = '';
+      let exportFormat: ExportFormat;
       
-      // Export based on selected format
+      // Map UI format to ExportFormat enum
       switch (selectedFormat) {
         case 'CSV':
-          filePath = await CsvService.exportEventToCsv(event);
+          exportFormat = ExportFormat.CSV;
           break;
-          
         case 'JSON':
-          // Convert to JSON
-          const jsonData = JSON.stringify({
-            id: event.id,
-            title: event.title,
-            date: event.date,
-            time: event.time,
-            location: event.location || '',
-            notes: event.notes || '',
-            expected_attendees: event.expected_attendees || '',
-            attendees_count: event.attendees_count || 0,
-            checked_in_count: event.checked_in_count || 0,
-            created_at: event.created_at,
-            updated_at: event.updated_at
-          }, null, 2);
-          
-          // Create filename
-          const sanitizedEventName = event.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          const filename = `${sanitizedEventName}_details_${timestamp}.json`;
-          
-          // Save to file
-          const file = new File(Paths.document, filename);
-          await file.write(jsonData);
-          filePath = file.uri;
+          exportFormat = ExportFormat.JSON;
           break;
-          
         case 'Excel':
-        case 'PDF':
-          // For now, we'll use CSV as a fallback and inform the user
-          Alert.alert('Feature Coming Soon', `${selectedFormat} export will be available in the next update. Using CSV format for now.`);
-          filePath = await CsvService.exportEventToCsv(event);
+          exportFormat = ExportFormat.EXCEL;
           break;
-          
+        case 'PDF':
+          exportFormat = ExportFormat.PDF;
+          break;
         default:
-          filePath = await CsvService.exportEventToCsv(event);
+          exportFormat = ExportFormat.CSV;
       }
       
-      // If password protection is enabled, add a simple header (in a real app, use proper encryption)
-      if (isPasswordProtected && password.trim()) {
-        const file = new File(filePath);
-        const fileContent = await file.text();
-        const protectedContent = `PROTECTED:${password}\n${fileContent}`;
-        await file.write(protectedContent);
-      }
+      // Export using ExportService
+      const filePath = await exportService.exportEvent(eventId, {
+        format: exportFormat,
+        password: isPasswordProtected && password.trim() ? password : undefined
+      });
       
-      // Share the file
-      await CsvService.shareCsvFile(filePath, 'Export Event Details');
+      // Handle PDF differently - show download or share option
+      if (exportFormat === ExportFormat.PDF) {
+        if (action === 'download') {
+          const savedPath = await PDFService.savePDFToDevice(filePath);
+          Alert.alert(
+            'PDF Saved', 
+            `Event report PDF has been saved to your device.\n\nFile: ${savedPath.split('/').pop()}`,
+            [{ text: 'OK' }]
+          );
+        } else {
+          await PDFService.sharePDF(filePath);
+        }
+      } else {
+        // For other formats, use the regular share
+        await exportService.shareFile(filePath, 'Export Event Details');
+      }
       
     } catch (error: any) {
       console.error('Error exporting event:', error);
@@ -219,16 +191,7 @@ export default function ExportScreen() {
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.backgroundPrimary }]}>
-        <View style={[styles.header, { paddingTop: insets.top }]}>
-          <TouchableOpacity
-            style={[styles.backButton, { backgroundColor: theme.colors.backgroundSecondary }]}
-            onPress={() => router.back()}
-          >
-            <CaretLeft size={20} color={theme.colors.textPrimary} weight="regular" />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Export Data</Text>
-          <View style={styles.headerRightPlaceholder} />
-        </View>
+        <AppHeader title="Export Data" />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={[styles.loadingText, { color: theme.colors.textPrimary }]}>Loading event...</Text>
@@ -239,16 +202,7 @@ export default function ExportScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.backgroundPrimary }]}>
-      <View style={[styles.header, { backgroundColor: theme.colors.backgroundPrimary, paddingTop: insets.top }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.colors.backgroundSecondary }]}
-          onPress={() => router.back()}
-        >
-          <CaretLeft size={20} color={theme.colors.textPrimary} weight="regular" />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Export Data</Text>
-        <View style={styles.headerRightPlaceholder} />
-      </View>
+      <AppHeader title="Export Data" />
 
       <ScrollView style={styles.contentScroll}>
         {/* Event Info Card */}
@@ -351,28 +305,57 @@ export default function ExportScreen() {
             Export all attendees for this event. You can include or exclude check-in status.
           </Text>
           <View style={styles.exportButtonsContainer}>
-            <TouchableOpacity
-              style={[styles.exportButton, { backgroundColor: theme.colors.primary }]}
-              onPress={() => handleExportAttendees(true)}
-              disabled={isExporting}
-            >
-              {isExporting ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  {exportIcons[selectedFormatIndex]({ size: 18, color: '#fff', weight: 'regular' })}
-                  <Text style={styles.exportButtonText}>With Check-in Status</Text>
-                </>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.exportButton, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}
-              onPress={() => handleExportAttendees(false)}
-              disabled={isExporting}
-            >
-              {exportIcons[selectedFormatIndex]({ size: 18, color: theme.colors.primary, weight: 'regular' })}
-              <Text style={[styles.exportButtonText, { color: theme.colors.primary }]}>Basic Info Only</Text>
-            </TouchableOpacity>
+            {selectedFormatIndex === 3 ? ( // PDF format selected
+              <>
+                <TouchableOpacity
+                  style={[styles.exportButton, { backgroundColor: theme.colors.primary }]}
+                  onPress={() => handleExportAttendees(true, 'download')}
+                  disabled={isExporting}
+                >
+                  {isExporting ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <FilePdf size={18} color="#fff" weight="regular" />
+                      <Text style={styles.exportButtonText}>Download PDF</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.exportButton, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}
+                  onPress={() => handleExportAttendees(true, 'share')}
+                  disabled={isExporting}
+                >
+                  <FilePdf size={18} color={theme.colors.primary} weight="regular" />
+                  <Text style={[styles.exportButtonText, { color: theme.colors.primary }]}>Share PDF</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.exportButton, { backgroundColor: theme.colors.primary }]}
+                  onPress={() => handleExportAttendees(true)}
+                  disabled={isExporting}
+                >
+                  {isExporting ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      {exportIcons[selectedFormatIndex]({ size: 18, color: '#fff', weight: 'regular' })}
+                      <Text style={styles.exportButtonText}>With Check-in Status</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.exportButton, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}
+                  onPress={() => handleExportAttendees(false)}
+                  disabled={isExporting}
+                >
+                  {exportIcons[selectedFormatIndex]({ size: 18, color: theme.colors.primary, weight: 'regular' })}
+                  <Text style={[styles.exportButtonText, { color: theme.colors.primary }]}>Basic Info Only</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
 
@@ -387,20 +370,47 @@ export default function ExportScreen() {
           <Text style={[styles.exportCardDescription, { color: theme.colors.textSecondary }]}>
             Export this event's details, including date, time, location, and attendance statistics.
           </Text>
-          <TouchableOpacity
-            style={[styles.exportButton, { backgroundColor: theme.colors.primary }]}
-            onPress={handleExportEvent}
-            disabled={isExporting}
-          >
-            {isExporting ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                {exportIcons[selectedFormatIndex]({ size: 18, color: '#fff', weight: 'regular' })}
-                <Text style={styles.exportButtonText}>Export Event Details</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          {selectedFormatIndex === 3 ? ( // PDF format selected
+            <View style={styles.exportButtonsContainer}>
+              <TouchableOpacity
+                style={[styles.exportButton, { backgroundColor: theme.colors.primary }]}
+                onPress={() => handleExportEvent('download')}
+                disabled={isExporting}
+              >
+                {isExporting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <FilePdf size={18} color="#fff" weight="regular" />
+                    <Text style={styles.exportButtonText}>Download PDF</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.exportButton, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}
+                onPress={() => handleExportEvent('share')}
+                disabled={isExporting}
+              >
+                <FilePdf size={18} color={theme.colors.primary} weight="regular" />
+                <Text style={[styles.exportButtonText, { color: theme.colors.primary }]}>Share PDF</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[styles.exportButton, { backgroundColor: theme.colors.primary }]}
+              onPress={() => handleExportEvent()}
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  {exportIcons[selectedFormatIndex]({ size: 18, color: '#fff', weight: 'regular' })}
+                  <Text style={styles.exportButtonText}>Export Event Details</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
         
         {/* Statistics Card */}
@@ -412,15 +422,63 @@ export default function ExportScreen() {
             </Text>
           </View>
           <Text style={[styles.exportCardDescription, { color: theme.colors.textSecondary }]}>
-            Coming soon: Export detailed event statistics and visualizations.
+            Export detailed event statistics and visualizations as PDF report.
           </Text>
-          <TouchableOpacity
-            style={[styles.exportButton, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}
-            disabled={true}
-          >
-            <FilePdf size={18} color={theme.colors.textSecondary} weight="regular" />
-            <Text style={[styles.exportButtonText, { color: theme.colors.textSecondary }]}>Coming Soon</Text>
-          </TouchableOpacity>
+          <View style={styles.exportButtonsContainer}>
+            <TouchableOpacity
+              style={[styles.exportButton, { backgroundColor: theme.colors.primary }]}
+              onPress={async () => {
+                try {
+                  setIsExporting(true);
+                  const filePath = await PDFService.generateStatisticsReport('all', {
+                    title: `${event?.title} - Statistics Report`,
+                    subtitle: `Generated on ${new Date().toLocaleDateString()}`
+                  });
+                  const savedPath = await PDFService.savePDFToDevice(filePath);
+                  Alert.alert(
+                    'PDF Saved', 
+                    `Statistics report has been saved to your device.\n\nFile: ${savedPath.split('/').pop()}`,
+                    [{ text: 'OK' }]
+                  );
+                } catch (error: any) {
+                  Alert.alert('Export Error', `Failed to export statistics: ${error.message}`);
+                } finally {
+                  setIsExporting(false);
+                }
+              }}
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <FilePdf size={18} color="#fff" weight="regular" />
+                  <Text style={styles.exportButtonText}>Download PDF</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.exportButton, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}
+              onPress={async () => {
+                try {
+                  setIsExporting(true);
+                  const filePath = await PDFService.generateStatisticsReport('all', {
+                    title: `${event?.title} - Statistics Report`,
+                    subtitle: `Generated on ${new Date().toLocaleDateString()}`
+                  });
+                  await PDFService.sharePDF(filePath);
+                } catch (error: any) {
+                  Alert.alert('Export Error', `Failed to export statistics: ${error.message}`);
+                } finally {
+                  setIsExporting(false);
+                }
+              }}
+              disabled={isExporting}
+            >
+              <FilePdf size={18} color={theme.colors.primary} weight="regular" />
+              <Text style={[styles.exportButtonText, { color: theme.colors.primary }]}>Share PDF</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -440,25 +498,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
     fontWeight: '500',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 15,
-    elevation: 4,
-  },
-  backButton: {
-    padding: 8,
-    borderRadius: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  headerRightPlaceholder: {
-    width: 40,
   },
   contentScroll: {
     flex: 1,

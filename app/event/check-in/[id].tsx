@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, TextInput, FlatList, RefreshControl, ActivityIndicator, StatusBar } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, TextInput, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CaretLeft, MagnifyingGlass, UserCirclePlus, QrCode, Users } from 'phosphor-react-native';
+import { UserCirclePlus, QrCode, Users, MagnifyingGlass } from 'phosphor-react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { useEvents } from '../../../context/EventContext';
 import * as _ from 'lodash';
 import SlideToCheckIn from '../../../components/SlideToCheckIn';
 import FAB from '../../../components/FAB';
+import AppHeader from '../../../components/AppHeader';
 import { Attendee } from '../../../models/Attendee';
 import { showToast } from '../../../utils/toast';
 
 export default function CheckInScreen() {
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id: string }>();
   const id = params.id;
   const { getEventById, checkInAttendee } = useEvents();
@@ -166,6 +165,11 @@ export default function CheckInScreen() {
     router.push(`/event/add-attendee/${id}`);
   };
 
+  const handleAttendeeDetails = (attendeeId: string) => {
+    // Navigate to attendee details screen
+    router.push(`/event/attendee-details/${id}?attendeeId=${attendeeId}`);
+  };
+
   const handleScanQR = () => {
     // Navigate to QR scanner screen
     router.push(`/event/scan-qr/${id}`);
@@ -200,22 +204,18 @@ export default function CheckInScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary }]}>
-      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
-      <View style={[styles.header, { backgroundColor: theme.colors.primary, paddingTop: insets.top }]}>
-        <TouchableOpacity 
-          style={styles.backButton} 
-          onPress={() => router.back()}
-        >
-          <CaretLeft size={24} color="white" weight="regular" />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: "white" }]}>Check-In</Text>
-        <TouchableOpacity 
-          style={styles.addButton} 
-          onPress={handleAddAttendee}
-        >
-          <UserCirclePlus size={24} color="white" weight="bold" />
-        </TouchableOpacity>
-      </View>
+      <AppHeader 
+        title="Check-In"
+        rightComponent={
+          <TouchableOpacity 
+            style={styles.addButton} 
+            onPress={handleAddAttendee}
+            activeOpacity={0.7}
+          >
+            <UserCirclePlus size={18} color="white" weight="bold" />
+          </TouchableOpacity>
+        }
+      />
 
       <View style={styles.contentContainer}>
         {/* Event Card with Stats */}
@@ -313,6 +313,7 @@ export default function CheckInScreen() {
             attendee={item}
             onCheckIn={() => handleToggleCheckIn(item.id)}
             onUncheckIn={() => handleToggleCheckIn(item.id)}
+            onTap={handleAttendeeDetails}
           />
         )}
         contentContainerStyle={styles.attendeeList}
@@ -346,32 +347,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 20,
-  },
   addButton: {
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 20,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.15)',
   },
   contentContainer: {
     padding: 16,
