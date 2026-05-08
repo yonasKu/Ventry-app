@@ -21,6 +21,7 @@ interface EventContextType {
   getAttendeeById: (attendeeId: string) => Promise<Attendee | null>;
   addAttendee: (eventId: string, attendeeData: { name: string, email?: string, phone?: string }) => Promise<Attendee>;
   checkInAttendee: (attendeeId: string, eventId: string) => Promise<Attendee | null>;
+  toggleAttendeeCheckIn: (attendeeId: string, eventId: string) => Promise<Attendee | null>;
   deleteAttendee: (attendeeId: string) => Promise<boolean>;
 }
 
@@ -285,6 +286,24 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  // Toggle attendee check-in state from the app UI
+  const toggleAttendeeCheckIn = async (attendeeId: string, eventId: string): Promise<Attendee | null> => {
+    try {
+      console.log(`Toggling attendee ID: ${attendeeId} for event ID: ${eventId}`);
+
+      const result = await dbService.toggleAttendeeCheckInAsync(attendeeId, eventId);
+      if (result) {
+        await refreshEvents();
+      }
+
+      return result;
+    } catch (err) {
+      console.error('Error toggling attendee check-in:', err);
+      setError('Failed to update attendee check-in');
+      return null;
+    }
+  };
+
   // Delete attendee - async
   const deleteAttendee = async (attendeeId: string) => {
     try {
@@ -324,6 +343,7 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         getAttendeeById,
         addAttendee,
         checkInAttendee,
+        toggleAttendeeCheckIn,
         deleteAttendee
       }}
     >

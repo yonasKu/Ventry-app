@@ -32,6 +32,7 @@ import ReportingService from '@/services/ReportingService';
 import ExportPDFButton from '@/components/ExportPDFButton';
 import FilterSheet, { FilterOptions } from '@/components/FilterSheet';
 import { ShareUtils } from '@/utils/shareUtils';
+import { dbService } from '@/services/DatabaseService';
 
 import { useLocalSearchParams } from 'expo-router';
 
@@ -176,6 +177,12 @@ export default function StatsScreen() {
       (a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()
     );
 
+    const getAttendeeIdentity = (attendee: { email: string | null; phone: string | null; name: string }) => {
+      if (attendee.email) return `email:${attendee.email.trim().toLowerCase()}`;
+      if (attendee.phone) return `phone:${attendee.phone.replace(/\D/g, '')}`;
+      return `name:${attendee.name.trim().toLowerCase()}`;
+    };
+
     // Data for AttendanceTrendChart - calculate from filteredEvents
     const days = filters.timeFilter === 'week' ? 7 : filters.timeFilter === 'month' ? 30 : filters.timeFilter === 'year' ? 365 : 90;
     // Group filtered events by date
@@ -233,14 +240,45 @@ export default function StatsScreen() {
       y: value,
     }));
     
-    // AttendeeTypeChart data - empty for now (feature not yet implemented)
-    const attendeeTypeData: Array<{ event: string; new: number; returning: number }> = [];
-    
+    // Estimate new vs returning attendees using previously seen attendee identities
+    const seenAttendeeIds = new Set<string>();
+    const attendeeTypeData = sortedEvents.map((event) => {
+      const attendees = dbService.getAttendees(event.id);
+      let newCount = 0;
+      let returningCount = 0;
+
+      attendees.forEach((attendee) => {
+        const identity = getAttendeeIdentity(attendee);
+        if (seenAttendeeIds.has(identity)) {
+          returningCount += 1;
+        } else {
+          newCount += 1;
+          seenAttendeeIds.add(identity);
+        }
+      });
+
+      return {
+        event: event.title.length > 12 ? `${event.title.substring(0, 12)}...` : event.title,
+        new: newCount,
+        returning: returningCount,
+      };
+    }).filter((event) => event.new > 0 || event.returning > 0).slice(-6);
+
     // Calculate check-in speed from real data
     const checkinSpeed = stats.totalCheckedIn > 0 ? Math.min(Math.round(stats.totalCheckedIn / filteredEvents.length), 100) : 0;
 
-    // CheckinActivityHeatMap data - empty for now (feature not yet implemented)
-    const heatMapData: number[][] = [];
+    // Build 7x24 heat map from attendee check-in timestamps
+    const heatMapData = Array.from({ length: 7 }, () => Array(24).fill(0));
+    sortedEvents.forEach((event) => {
+      const attendees = dbService.getAttendees(event.id);
+      attendees.forEach((attendee) => {
+        if (!attendee.checked_in || !attendee.check_in_time) return;
+        const checkInDate = new Date(attendee.check_in_time);
+        if (Number.isNaN(checkInDate.getTime())) return;
+
+        heatMapData[checkInDate.getDay()][checkInDate.getHours()] += 1;
+      });
+    });
 
     // Data for EventCompletionBars - use filteredEvents only
     const topEvents = [...filteredEvents]

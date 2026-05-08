@@ -514,6 +514,53 @@ describe('DatabaseService - Attendee Operations', () => {
       expect(mockWithTransactionSync).toHaveBeenCalled();
     });
   });
+
+  describe('toggleAttendeeCheckIn', () => {
+    it('should check in an unchecked attendee', () => {
+      const mockAttendeeRaw = { ...mockAttendee, checked_in: 0 };
+      mockGetFirstSync.mockReturnValueOnce(mockAttendeeRaw);
+      mockWithTransactionSync.mockImplementationOnce((callback) => callback());
+      mockRunSync.mockReturnValue({ changes: 1 });
+
+      const result = service.toggleAttendeeCheckIn(mockAttendee.id, mockEvent.id);
+
+      expect(result).toBeDefined();
+      expect(result?.checked_in).toBe(true);
+      expect(mockRunSync).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE attendees SET checked_in'),
+        expect.arrayContaining([1])
+      );
+      expect(mockRunSync).toHaveBeenCalledWith(
+        expect.stringContaining('SET checked_in_count = checked_in_count + ?'),
+        expect.arrayContaining([1])
+      );
+    });
+
+    it('should uncheck a checked-in attendee', () => {
+      const mockAttendeeRaw = { ...mockAttendee, checked_in: 1, check_in_time: '2026-02-20T10:00:00Z' };
+      mockGetFirstSync.mockReturnValueOnce(mockAttendeeRaw);
+      mockWithTransactionSync.mockImplementationOnce((callback) => callback());
+      mockRunSync.mockReturnValue({ changes: 1 });
+
+      const result = service.toggleAttendeeCheckIn(mockAttendee.id, mockEvent.id);
+
+      expect(result).toBeDefined();
+      expect(result?.checked_in).toBe(false);
+      expect(result?.check_in_time).toBeNull();
+      expect(mockRunSync).toHaveBeenCalledWith(
+        expect.stringContaining('SET checked_in_count = checked_in_count + ?'),
+        expect.arrayContaining([-1])
+      );
+    });
+
+    it('should return null if attendee does not exist', () => {
+      mockGetFirstSync.mockReturnValueOnce(null);
+
+      const result = service.toggleAttendeeCheckIn('non-existent-id', mockEvent.id);
+
+      expect(result).toBeNull();
+    });
+  });
 });
 
 describe('DatabaseService - Async Methods', () => {

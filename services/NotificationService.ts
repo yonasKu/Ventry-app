@@ -1,5 +1,5 @@
 import * as Notifications from 'expo-notifications';
-import notifee, { AndroidStyle, AndroidImportance, AndroidVisibility, AndroidCategory } from '@notifee/react-native';
+import notifee, { AndroidStyle, AndroidImportance, AndroidVisibility, AndroidCategory, EventType } from '@notifee/react-native';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Event } from './DatabaseService';
@@ -254,12 +254,12 @@ class NotificationService {
   private setupNotifeeListener(): void {
     // Handle notification press
     notifee.onForegroundEvent(({ type, detail }) => {
-      if (type === notifee.EventType.PRESS) {
+      if (type === EventType.PRESS) {
         console.log('Rich notification pressed:', detail.notification?.data);
         // Handle navigation based on notification data
       }
       
-      if (type === notifee.EventType.ACTION_PRESS) {
+      if (type === EventType.ACTION_PRESS) {
         console.log('Rich notification action pressed:', detail.pressAction?.id);
         this.handleNotificationAction(detail.pressAction?.id, detail.notification?.data);
       }
@@ -267,7 +267,7 @@ class NotificationService {
 
     // Handle background events
     notifee.onBackgroundEvent(async ({ type, detail }) => {
-      if (type === notifee.EventType.ACTION_PRESS) {
+      if (type === EventType.ACTION_PRESS) {
         console.log('Background action pressed:', detail.pressAction?.id);
         await this.handleNotificationAction(detail.pressAction?.id, detail.notification?.data);
       }

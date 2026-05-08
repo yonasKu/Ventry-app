@@ -15,7 +15,7 @@ type Attendee = {
   email: string | null;
   phone: string | null;
   checked_in: boolean;
-  check_in_time?: string;
+  check_in_time: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -24,7 +24,7 @@ export default function ManageAttendeesScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { id, mode } = useLocalSearchParams<{ id: string, mode?: string }>();
-  const { getEventById, checkInAttendee } = useEvents();
+  const { getEventById, toggleAttendeeCheckIn } = useEvents();
   
   // Check if we're in QR mode
   const isQRMode = mode === 'qr';
@@ -218,11 +218,16 @@ export default function ManageAttendeesScreen() {
       const attendee = attendees.find(a => a.id === attendeeId);
       if (!attendee) return;
       
-      // Toggle the checked_in status
-      const updatedAttendee = {
+      const result = await toggleAttendeeCheckIn(attendeeId, id);
+      if (!result) {
+        throw new Error('Failed to update attendee check-in');
+      }
+
+      const updatedAttendee: Attendee = {
         ...attendee,
-        checked_in: !attendee.checked_in,
-        check_in_time: !attendee.checked_in ? new Date().toISOString() : undefined
+        checked_in: result.checked_in,
+        check_in_time: result.check_in_time,
+        updated_at: result.updated_at,
       };
       
       // Update attendees array
@@ -234,8 +239,6 @@ export default function ManageAttendeesScreen() {
       setFilteredAttendees((prevFiltered: Attendee[]) => 
         prevFiltered.map((a: Attendee) => a.id === attendeeId ? updatedAttendee : a)
       );
-      
-      // In a real implementation, you would update the database here
     } catch (error) {
       console.error('Error toggling check-in status:', error);
       Alert.alert('Error', 'Failed to update check-in status');

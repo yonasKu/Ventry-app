@@ -21,11 +21,14 @@ import {
   Database,
 } from 'phosphor-react-native';
 import { useTheme } from '@/context/ThemeContext';
+import { useEvents } from '@/context/EventContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationService from '@/services/NotificationService';
+import { dbService } from '@/services/DatabaseService';
 
 export default function SettingsScreen() {
   const theme = useTheme();
+  const { refreshEvents } = useEvents();
   const [notifications, setNotifications] = useState(true);
   const [autoBackup, setAutoBackup] = useState(false);
 
@@ -146,8 +149,13 @@ export default function SettingsScreen() {
                   style: 'destructive',
                   onPress: async () => {
                     try {
+                      await NotificationService.cancelAllNotifications();
+                      await dbService.clearAllDataAsync();
                       await AsyncStorage.clear();
-                      Alert.alert('Success', 'All data has been deleted. Please restart the app.');
+                      setNotifications(true);
+                      setAutoBackup(false);
+                      await refreshEvents();
+                      Alert.alert('Success', 'All local event data, attendees, reminders, and settings have been deleted.');
                     } catch (error) {
                       Alert.alert('Error', 'Failed to clear data');
                     }

@@ -36,7 +36,11 @@ export const showToast = {
       error: string;
     }
   ) => {
-    return toast.promise(promise, messages);
+    return toast.promise(promise, {
+      loading: messages.loading,
+      success: () => messages.success,
+      error: () => messages.error,
+    });
   },
 };
 

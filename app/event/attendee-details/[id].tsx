@@ -12,7 +12,7 @@ export default function AttendeeDetailsScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { id, attendeeId } = useLocalSearchParams<{ id: string, attendeeId: string }>();
-  const { getEventById, checkInAttendee, deleteAttendee } = useEvents();
+  const { getEventById, toggleAttendeeCheckIn, deleteAttendee } = useEvents();
   
   const [event, setEvent] = useState<any>(null);
   const [attendee, setAttendee] = useState<any>(null);
@@ -54,20 +54,19 @@ export default function AttendeeDetailsScreen() {
     if (!attendee || !id) return;
     
     try {
-      const success = await checkInAttendee(attendee.id, id);
-      if (success) {
-        // Update the local state to reflect the toggled status
-        const newCheckedInStatus = !attendee.checked_in;
+      const updatedAttendee = await toggleAttendeeCheckIn(attendee.id, id);
+      if (updatedAttendee) {
         setAttendee({
           ...attendee,
-          checked_in: newCheckedInStatus,
-          check_in_time: newCheckedInStatus ? new Date().toISOString() : null
+          checked_in: updatedAttendee.checked_in,
+          check_in_time: updatedAttendee.check_in_time,
+          updated_at: updatedAttendee.updated_at,
         });
         
         // Show a toast or alert to confirm the action
         Alert.alert(
           'Success', 
-          newCheckedInStatus ? 'Attendee checked in successfully' : 'Attendee check-in status removed'
+          updatedAttendee.checked_in ? 'Attendee checked in successfully' : 'Attendee check-in status removed'
         );
       }
     } catch (error) {

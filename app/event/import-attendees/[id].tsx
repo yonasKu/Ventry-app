@@ -558,7 +558,7 @@ export default function ImportAttendeesScreen() {
                     email: selectedAttendee.email || null,
                     phone: selectedAttendee.phone || null,
                     checked_in: false,
-                    check_in_time: undefined,
+                    check_in_time: null,
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                   }}

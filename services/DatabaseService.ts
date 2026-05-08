@@ -26,7 +26,7 @@ export interface Attendee {
   email: string | null; // Optional email field
   phone: string | null; // Optional phone field
   checked_in: boolean; // Use 0 for false, 1 for true in SQLite
-  check_in_time?: string; // Optional timestamp when checked in
+  check_in_time: string | null; // Optional timestamp when checked in
   created_at: string;
   updated_at: string;
 }
@@ -91,6 +91,20 @@ export class DatabaseService {
       return columns.some((col: { name: string }) => col.name === columnName);
     } catch (error) {
       console.error(`Error checking if column ${columnName} exists in ${tableName}:`, error);
+      return false;
+    }
+  }
+
+  // Check if a table exists in the database
+  private tableExists(tableName: string): boolean {
+    try {
+      const result = this.db.getFirstSync<{ name: string }>(
+        `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?;`,
+        [tableName]
+      );
+      return !!result;
+    } catch (error) {
+      console.error(`Error checking if table ${tableName} exists:`, error);
       return false;
     }
   }
@@ -400,20 +414,23 @@ export class DatabaseService {
       let success = false;
       
       this.db.withTransactionSync(() => {
-        // 1. Delete custom field values for all attendees
-        this.db.runSync(
-          `DELETE FROM custom_field_values 
-           WHERE attendee_id IN (
-             SELECT id FROM attendees WHERE event_id = ?
-           );`,
-          [id]
-        );
+        // 1. Delete custom field data when those optional tables exist
+        if (this.tableExists('custom_field_values')) {
+          this.db.runSync(
+            `DELETE FROM custom_field_values 
+             WHERE attendee_id IN (
+               SELECT id FROM attendees WHERE event_id = ?
+             );`,
+            [id]
+          );
+        }
         
-        // 2. Delete custom fields for this event
-        this.db.runSync(
-          'DELETE FROM custom_fields WHERE event_id = ?;',
-          [id]
-        );
+        if (this.tableExists('custom_fields')) {
+          this.db.runSync(
+            'DELETE FROM custom_fields WHERE event_id = ?;',
+            [id]
+          );
+        }
         
         // 3. Delete attendees
         this.db.runSync(
@@ -433,6 +450,33 @@ export class DatabaseService {
       return success;
     } catch (error) {
       console.error('Error deleting event:', error);
+      throw error;
+    }
+  }
+
+  // Delete all application data stored in SQLite
+  clearAllData(): boolean {
+    try {
+      this.db.withTransactionSync(() => {
+        if (this.tableExists('custom_field_values')) {
+          this.db.runSync('DELETE FROM custom_field_values;');
+        }
+
+        if (this.tableExists('custom_fields')) {
+          this.db.runSync('DELETE FROM custom_fields;');
+        }
+
+        if (this.tableExists('field_templates')) {
+          this.db.runSync('DELETE FROM field_templates;');
+        }
+
+        this.db.runSync('DELETE FROM attendees;');
+        this.db.runSync('DELETE FROM events;');
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error clearing all data:', error);
       throw error;
     }
   }
@@ -510,6 +554,19 @@ export class DatabaseService {
     });
   }
 
+  async clearAllDataAsync(): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        try {
+          const result = this.clearAllData();
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      }, 0);
+    });
+  }
+
   // --- Attendee related methods using SQLite (Synchronous) ---
 
   // Add Attendee to an Event - Synchronous
@@ -526,6 +583,7 @@ export class DatabaseService {
       email: attendeeData.email || null,
       phone: attendeeData.phone || null,
       checked_in: false,
+      check_in_time: null,
       created_at: now,
       updated_at: now,
     };
@@ -695,6 +753,61 @@ export class DatabaseService {
     }
   }
 
+  // Toggle attendee check-in state from the app UI
+  toggleAttendeeCheckIn(attendeeId: string, eventId?: string): Attendee | null {
+    const now = new Date().toISOString();
+
+    try {
+      const existingAttendee = this.getAttendeeById(attendeeId);
+
+      if (!existingAttendee) {
+        console.warn(`Attendee with ID ${attendeeId} not found for toggle.`);
+        return null;
+      }
+
+      if (eventId && existingAttendee.event_id !== eventId) {
+        throw new Error(
+          `Attendee ${attendeeId} is not registered for event ${eventId}`
+        );
+      }
+
+      const nextCheckedInState = !existingAttendee.checked_in;
+      const nextCheckInTime = nextCheckedInState ? now : null;
+
+      let successfulToggle = false;
+      this.db.withTransactionSync(() => {
+        const updateResult = this.db.runSync(
+          'UPDATE attendees SET checked_in = ?, check_in_time = ?, updated_at = ? WHERE id = ?;',
+          [nextCheckedInState ? 1 : 0, nextCheckInTime, now, attendeeId]
+        );
+
+        if (updateResult.changes > 0) {
+          this.db.runSync(
+            `UPDATE events 
+             SET checked_in_count = checked_in_count + ?, updated_at = ? 
+             WHERE id = ?;`,
+            [nextCheckedInState ? 1 : -1, now, existingAttendee.event_id]
+          );
+          successfulToggle = true;
+        }
+      });
+
+      if (!successfulToggle) {
+        return null;
+      }
+
+      return {
+        ...existingAttendee,
+        checked_in: nextCheckedInState,
+        check_in_time: nextCheckInTime,
+        updated_at: now,
+      };
+    } catch (error) {
+      console.error(`Error toggling attendee ${attendeeId} check-in:`, error);
+      throw error;
+    }
+  }
+
   // Delete an Attendee from an Event
   deleteAttendee(attendeeId: string): boolean {
     const now = new Date().toISOString();
@@ -773,6 +886,19 @@ export class DatabaseService {
         try {
           // Ensure the synchronous version is called with both arguments
           const result = this.checkInAttendee(attendeeId, eventIdFromQR);
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      }, 0);
+    });
+  }
+
+  async toggleAttendeeCheckInAsync(attendeeId: string, eventId?: string): Promise<Attendee | null> {
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        try {
+          const result = this.toggleAttendeeCheckIn(attendeeId, eventId);
           resolve(result);
         } catch (error) {
           reject(error);

@@ -52,9 +52,9 @@ export default function QuickFilterChips({
             <Text
               style={[
                 styles.chipText,
-                theme.typography.bodySmall,
+                theme.typography.body,
                 {
-                  color: isActive ? '#FFFFFF' : theme.colors.text,
+                  color: isActive ? '#FFFFFF' : theme.colors.textPrimary,
                   fontWeight: isActive ? '600' : '400',
                 }
               ]}

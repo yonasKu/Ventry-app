@@ -1,7 +1,7 @@
 import { Paths, File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { nanoid } from 'nanoid/non-secure';
-import { DatabaseService, Event, Attendee } from './DatabaseService';
+import { dbService, Event, Attendee } from './DatabaseService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Types
@@ -92,11 +92,9 @@ const PAIRED_DEVICES_KEY = '@ventry:paired_devices';
 const SYNC_HISTORY_KEY = '@ventry:sync_history';
 
 export class SyncService {
-  private db: DatabaseService;
+  private db = dbService;
 
-  constructor() {
-    this.db = new DatabaseService();
-  }
+  constructor() {}
 
   // ==================== Device Management ====================
 

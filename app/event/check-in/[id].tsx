@@ -15,7 +15,7 @@ export default function CheckInScreen() {
   const theme = useTheme();
   const params = useLocalSearchParams<{ id: string }>();
   const id = params.id;
-  const { getEventById, checkInAttendee } = useEvents();
+  const { getEventById, toggleAttendeeCheckIn } = useEvents();
   
   const [event, setEvent] = useState<any>(null);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
@@ -132,18 +132,19 @@ export default function CheckInScreen() {
       const attendee = attendees.find((a) => a.id === attendeeId);
       if (!attendee) return;
 
-      await checkInAttendee(attendeeId, id);
-      // Optimistically update UI
-      const newCheckedInStatus = !attendee.checked_in;
+      const updatedAttendee = await toggleAttendeeCheckIn(attendeeId, id);
+      if (!updatedAttendee) {
+        throw new Error('Unable to update attendee check-in state');
+      }
+
       setAttendees((prevAttendees) =>
         prevAttendees.map((a) =>
           a.id === attendeeId
             ? {
                 ...a,
-                checked_in: newCheckedInStatus,
-                check_in_time: newCheckedInStatus
-                  ? new Date().toISOString()
-                  : null,
+                checked_in: updatedAttendee.checked_in,
+                check_in_time: updatedAttendee.check_in_time ?? null,
+                updated_at: updatedAttendee.updated_at,
               }
             : a
         )
@@ -151,7 +152,7 @@ export default function CheckInScreen() {
       
       // Show success toast
       showToast.success(
-        newCheckedInStatus ? 'Checked in successfully!' : 'Check-in removed'
+        updatedAttendee.checked_in ? 'Checked in successfully!' : 'Check-in removed'
       );
     } catch (error) {
       console.error('Error toggling check-in status:', error);

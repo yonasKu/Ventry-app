@@ -27,7 +27,7 @@ const { width } = Dimensions.get('window');
 
 interface TabItem {
   label: string;
-  icon: (color: string, size: number) => JSX.Element;
+  icon: (color: string, size: number) => React.ReactElement;
   path: string;
 }
 
